@@ -1,10 +1,10 @@
 """
-분산일(매물 출회일) 체커 - 데이터 수집 + 계산 스크립트
+매물 출회일(distribution day) 체커 - 데이터 수집 + 계산 스크립트
 
 하는 일
  1. 야후에서 NASDAQ 종합지수, S&P 500, NYSE 종합지수 일봉을 받는다.
  2. S&P 500 거래량은 구성종목 약 500개의 거래량을 합산해서 만든다.
- 3. 분산일 판단: 전일 종가 대비 변동률 <= -0.2%  그리고  거래량 > 전일 거래량
+ 3. 매물 출회일 판단: 전일 종가 대비 변동률 <= -0.2%  그리고  거래량 > 전일 거래량
  4. 결과를 template.html 에 넣어서 site/distribution/index.html 을 만든다.
 
 실행: python update_data.py
@@ -24,7 +24,7 @@ SITE = HERE.parent / "site" / "distribution"   # 완성된 웹페이지가 저�
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36"}
 
 DIST_THRESHOLD = -0.2      # 변동률(%) 이 값 이하이면 하락으로 판단
-WINDOW = 25                # 최근 몇 거래일 안의 분산일을 셀지
+WINDOW = 25                # 최근 몇 거래일 안의 매물 출회일을 셀지
 SHOW_MONTHS = 2            # 화면에 보여줄 기간(개월)
 CONSTITUENTS_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
 
@@ -101,7 +101,7 @@ def sp500_summed_volume(rng):
 
 
 def compute(bars):
-    """날짜순 일봉 리스트에 변동률, 거래량 변화, 분산일 여부를 붙인다."""
+    """날짜순 일봉 리스트에 변동률, 거래량 변화, 매물 출회일 여부를 붙인다."""
     days = sorted(d for d, b in bars.items() if b["v"])  # 거래량 없는 날 제외
     rows = []
     for prev, cur in zip(days, days[1:]):
@@ -166,7 +166,7 @@ def main():
     (SITE / "index.html").write_text(wrap_page(body), encoding="utf-8")
     print(f"완료: 마지막 거래일 {last_day}, 구성종목 {sp_total}개 중 실패 {len(sp_failed)}개")
     for ix in out["indices"]:
-        print(f"  {ix['name']}: 최근 {WINDOW}거래일 분산일 {ix['count']}개")
+        print(f"  {ix['name']}: 최근 {WINDOW}거래일 매물 출회일 {ix['count']}개")
 
 
 if __name__ == "__main__":

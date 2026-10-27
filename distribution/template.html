@@ -1,4 +1,4 @@
-<title>분산일 체커</title>
+<title>매물 출회일 체커</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -131,15 +131,15 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 
 <div class="wrap">
   <header>
-    <h1>분산일 체커</h1>
+    <h1>매물 출회일 체커</h1>
     <div class="meta" id="meta"></div>
     <div class="rule" id="rule"></div>
   </header>
 
-  <section class="summary" id="summary" aria-label="지수별 최근 분산일 개수"></section>
+  <section class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></section>
   <div class="summary-note" id="summaryNote"></div>
 
-  <section class="cal" aria-label="분산일 캘린더">
+  <section class="cal" aria-label="매물 출회일 캘린더">
     <div class="cal-head">
       <div class="cal-title" id="calTitle"></div>
       <div class="nav">
@@ -148,7 +148,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       </div>
     </div>
     <div class="legend">
-      <span><i class="sw d"></i>빨간 칸 = 분산일</span>
+      <span><i class="sw d"></i>빨간 칸 = 매물 출회일</span>
       <span><i class="sw win"></i>최근 25거래일</span>
     </div>
     <div class="grid" id="grid"></div>
@@ -158,7 +158,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     <h2 id="detailTitle"></h2>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>지수</th><th>종가</th><th>변동폭</th><th>거래량</th><th>전일 대비</th><th>분산일 여부</th></tr></thead>
+        <thead><tr><th>지수</th><th>종가</th><th>변동폭</th><th>거래량</th><th>전일 대비</th><th>매물 출회일 여부</th></tr></thead>
         <tbody id="detailBody"></tbody>
       </table>
     </div>

@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 데이터 받기 + 분산일 계산 + 페이지 만들기
+      - name: 데이터 받기 + 매물 출회일 계산 + 페이지 만들기
         run: |
           mkdir -p site
           cp home/index.html site/index.html

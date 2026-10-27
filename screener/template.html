@@ -80,12 +80,12 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .detail { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); background: var(--bg); min-width: 0; }
 .pane { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line); }
 .pane-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.pane-head h3 { margin: 0; font-size: 0.92rem; }
+.pane-head h3 { margin: 0; font-size: 0.92rem; white-space: nowrap; flex-shrink: 0; }
 .pane-head .who { font-size: 0.82rem; color: var(--muted); }
 .pane-body { flex: 1; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; padding: 16px; text-align: center; }
 .chart-wrap { flex: 1; min-height: 0; position: relative; background: var(--surface); }
 #chart { position: absolute; inset: 0; }
-.chart-msg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; text-align: center; padding: 16px; }
+.chart-msg { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; text-align: center; padding: 16px; }
 .legend { margin-left: auto; font-family: var(--font-num); font-size: 0.75rem; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .legend .ma { color: var(--ma); }
 .pane-head a { font-size: 0.75rem; color: var(--accent); }
@@ -95,7 +95,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 }
 .tool-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chart-wrap.measuring { cursor: crosshair; }
-#measure { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+#measure { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 5; }
 .m-line { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .m-dot { fill: var(--accent); }
 .m-box { fill: var(--surface); stroke: var(--accent); stroke-width: 1; }
@@ -104,7 +104,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .m-text.down { fill: var(--bad); }
 .m-sub { font-family: var(--font-num); font-size: 11px; fill: var(--muted); }
 .m-hint { position: absolute; left: 12px; top: 10px; font-size: 0.75rem; color: var(--muted); background: var(--surface);
-  border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; pointer-events: none; }
+  border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; pointer-events: none; z-index: 6; }
 @media (max-width: 900px) {
   html, body { height: auto; }
   .app { grid-template-columns: 1fr; height: auto; }
@@ -273,11 +273,11 @@ function initChart() {
   ma = chart.addLineSeries({ color: css("--ma"), lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
   chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-  chart.subscribeCrosshairMove(p => {
-    showLegend(p && p.time ? p.time : null);
-    if (measure.on && measure.a && !measure.b) { measure.hover = toPoint(p); drawMeasure(); }
+  chart.subscribeCrosshairMove(p => showLegend(p && p.time ? p.time : null));
+  el.addEventListener("click", onChartClick);
+  el.addEventListener("pointermove", e => {
+    if (measure.on && measure.a && !measure.b) { measure.hover = toPoint(chartXY(e)); drawMeasure(); }
   });
-  chart.subscribeClick(onChartClick);
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => drawMeasure());
   new ResizeObserver(() => requestAnimationFrame(drawMeasure)).observe(el);
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -291,10 +291,11 @@ function initChart() {
 /* ---------- % 측정 도구: 첫 점 대비 두 번째 점의 상승·하락률 ---------- */
 const measure = { on: false, a: null, b: null, hover: null };
 
-function toPoint(param) {
-  if (!param || !param.point) return null;
-  const logical = chart.timeScale().coordinateToLogical(param.point.x);
-  const price = candles.coordinateToPrice(param.point.y);
+/* 화면 좌표(차트 칸 기준 x, y) → 차트 위치(몇 번째 주, 가격) */
+function toPoint(pt) {
+  if (!pt) return null;
+  const logical = chart.timeScale().coordinateToLogical(pt.x);
+  const price = candles.coordinateToPrice(pt.y);
   if (logical == null || price == null || price <= 0) return null;
   return { logical, price };
 }
@@ -325,21 +326,36 @@ function drawMeasure() {
       const weeks = Math.round(end.logical - measure.a.logical);
       const main = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`;
       const sub = `${measure.a.price.toFixed(2)} → ${end.price.toFixed(2)} · ${Math.abs(weeks)}주`;
-      const w = Math.max(main.length * 7.6, sub.length * 6.4) + 16, h = 38;
-      const bx = Math.max(4, Math.min(x2 + 10, document.getElementById("chartWrap").clientWidth - w - 70)), by = Math.max(4, y2 - h - 8);
       html += `<line class="m-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
         <circle class="m-dot" cx="${x2}" cy="${y2}" r="3.5"/>
-        <rect class="m-box" x="${bx}" y="${by}" width="${w}" height="${h}" rx="6"/>
-        <text class="m-text ${chg >= 0 ? "up" : "down"}" x="${bx + 8}" y="${by + 16}">${main}</text>
-        <text class="m-sub" x="${bx + 8}" y="${by + 31}">${sub}</text>`;
+        <g id="mLabel" data-x="${x2}" data-y="${y2}"><rect class="m-box" height="38" rx="6"/>
+        <text class="m-text ${chg >= 0 ? "up" : "down"}">${main}</text>
+        <text class="m-sub">${sub}</text></g>`;
     }
   }
   svg.innerHTML = html;
+  // 글자 길이에 맞춰 상자 크기와 위치 정하기 (차트 오른쪽 가격 눈금은 피하기)
+  const g = svg.querySelector("#mLabel");
+  if (g) {
+    const [t1, t2] = g.querySelectorAll("text"), rect = g.querySelector("rect");
+    const w = Math.max(t1.getComputedTextLength(), t2.getComputedTextLength()) + 16, h = 38;
+    const x2 = +g.dataset.x, y2 = +g.dataset.y, limit = document.getElementById("chartWrap").clientWidth - 70;
+    const bx = x2 + 10 + w <= limit ? x2 + 10 : Math.max(4, x2 - 10 - w), by = Math.max(4, y2 - h - 8);
+    rect.setAttribute("x", bx); rect.setAttribute("y", by); rect.setAttribute("width", w);
+    t1.setAttribute("x", bx + 8); t1.setAttribute("y", by + 16);
+    t2.setAttribute("x", bx + 8); t2.setAttribute("y", by + 31);
+  }
 }
 
-function onChartClick(param) {
-  if (!measure.on) return;
-  const p = toPoint(param);
+function chartXY(e) {
+  const r = document.getElementById("chart").getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+/* 클릭은 차트 도구가 아니라 브라우저에서 직접 받는다 (빠르게 두 번 누르면 차트 도구가 더블클릭으로 보고 두 번째 클릭을 버리기 때문) */
+function onChartClick(e) {
+  if (!measure.on || !chart) return;
+  const p = toPoint(chartXY(e));
   if (!p) return;
   if (!measure.a || measure.b) { measure.a = p; measure.b = null; }   // 세 번째 클릭은 새 측정 시작
   else measure.b = p;

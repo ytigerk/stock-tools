@@ -32,14 +32,18 @@ YAHOO_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
 SEC_UA = {"User-Agent": os.environ.get("SEC_USER_AGENT", "")}
 EXCHANGES = {"Nasdaq", "NYSE", "CBOE", "TXSE"}
 MIN_PRICE, MIN_VOL = 10, 50_000      # 저장 대상 바닥값 (화면 기본 조건보다 넉넉하게)
-CHART_DAYS = 260                     # 차트용으로 저장할 거래일 수 (약 1년)
+PRICE_RANGE = "2y"                   # 야후에서 받을 일봉 기간 (주봉 차트 2년용)
 # 보통주가 아닌 것 걸러내기
 #  - 나스닥 5글자 코드의 마지막 글자: M/N/O/P 우선주, R 권리, U 유닛, W 워런트, Z 기타
 NON_COMMON_5TH = set("MNOPRUWZ")
 NON_COMMON_WORDS = ("preferred", "depositary share", "warrant", " units", " rights", "notes due", "debenture")
 
 
-def is_common(ticker, exchange, long_name):
+def is_common(ticker, exchange, long_name, kind):
+    if kind and kind != "EQUITY":          # ETF, 펀드 등
+        return False
+    if "-P" in ticker:                       # NYSE 우선주 (예: ALL-PH)
+        return False
     if exchange == "Nasdaq" and len(ticker) == 5 and ticker[-1] in NON_COMMON_5TH:
         return False
     name = (long_name or "").lower()
@@ -59,12 +63,13 @@ def http_json(url, headers, timeout=30, tries=4):
 
 
 def yahoo_daily(sym):
-    """1년치 일봉 + 10년치 분할 기록"""
+    """2년치 일봉, 종목 이름, 상장일"""
     q = urllib.parse.quote(sym)
-    r = http_json(f"https://query2.finance.yahoo.com/v8/finance/chart/{q}?range=1y&interval=1d", YAHOO_UA)["chart"]["result"][0]
+    r = http_json(f"https://query2.finance.yahoo.com/v8/finance/chart/{q}?range={PRICE_RANGE}&interval=1d", YAHOO_UA)["chart"]["result"][0]
     off = r["meta"].get("gmtoffset", 0)
     long_name = r["meta"].get("longName") or r["meta"].get("shortName")
     first_trade = r["meta"].get("firstTradeDate")  # 상장(첫 거래)일, 상장 3년 미만 판단용
+    kind = r["meta"].get("instrumentType")          # EQUITY(주식), ETF 등
     qt = r["indicators"]["quote"][0]
     bars = []
     for i, ts in enumerate(r.get("timestamp") or []):
@@ -74,7 +79,7 @@ def yahoo_daily(sym):
         bars.append([day, round(qt["open"][i], 4), round(qt["high"][i], 4), round(qt["low"][i], 4),
                      round(qt["close"][i], 4), qt["volume"][i] or 0])
     ipo = dt.datetime.fromtimestamp(first_trade, dt.UTC).date().isoformat() if first_trade else None
-    return bars, long_name, ipo
+    return bars, long_name, ipo, kind
 
 
 class YahooEarnings:
@@ -117,6 +122,20 @@ class YahooEarnings:
         return None
 
 
+def weekly(bars):
+    """일봉 [날짜, 시, 고, 저, 종, 거래량] → 주봉. 날짜는 그 주의 월요일"""
+    out = []
+    for day, o, h, l, c, v in bars:
+        dd = dt.date.fromisoformat(day)
+        monday = (dd - dt.timedelta(days=dd.weekday())).isoformat()
+        if out and out[-1][0] == monday:
+            w = out[-1]
+            w[2], w[3], w[4], w[5] = max(w[2], h), min(w[3], l), c, w[5] + v
+        else:
+            out.append([monday, o, h, l, c, v])
+    return out
+
+
 def yahoo_splits(sym):
     q = urllib.parse.quote(sym)
     r = http_json(f"https://query2.finance.yahoo.com/v8/finance/chart/{q}?range=10y&interval=3mo&events=split", YAHOO_UA)
@@ -149,10 +168,10 @@ def main():
         if res is None:
             failed += 1
             continue
-        bars, long_name, ipo = res
+        bars, long_name, ipo, kind = res
         if len(bars) < 50:
             continue
-        if not is_common(u["ticker"], u["exchange"], long_name):
+        if not is_common(u["ticker"], u["exchange"], long_name, kind):
             skipped += 1
             continue
         last = bars[-1]
@@ -161,7 +180,7 @@ def main():
             continue
         rows.append({"t": u["ticker"], "ysym": u["ysym"], "name": u["name"], "ex": u["exchange"], "cik": u["cik"],
                      "price": round(last[4], 2), "vol50": round(vol50), "date": last[0],
-                     "hi52": round(max(b[2] for b in bars), 2), "ipo": ipo, "bars": bars[-CHART_DAYS:]})
+                     "hi52": round(max(b[2] for b in bars[-252:]), 2), "ipo": ipo, "weeks": weekly(bars)})
     print(f"[2] 주가 수신 실패 {failed}개, 보통주 아님 {skipped}개, 바닥 조건 통과 {len(rows)}개 ({time.time() - t0:.0f}초)")
 
     # 3. 분할 기록
@@ -207,11 +226,11 @@ def main():
     got = sum(1 for r in targets if r.get("yq"))
     print(f"[5] 야후 실적 발표 기록 {got}/{len(targets)}개 ({time.time() - t0:.0f}초)")
 
-    # 6. 저장 (차트 일봉은 종목별 파일로 따로)
+    # 6. 저장 (주봉 차트 자료는 종목별 파일로 따로)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "charts").mkdir(exist_ok=True)
     for r in rows:
-        (OUT / "charts" / f"{r['ysym']}.json").write_text(json.dumps(r.pop("bars")), encoding="utf-8")
+        (OUT / "charts" / f"{r['ysym']}.json").write_text(json.dumps(r.pop("weeks"), separators=(",", ":")), encoding="utf-8")
         r.pop("splits")
     data = {"generatedAt": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
             "priceDate": max(r["date"] for r in rows), "rows": rows}

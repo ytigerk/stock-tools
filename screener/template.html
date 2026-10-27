@@ -113,7 +113,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
         <button class="btn" id="reset" type="button">기본값으로</button>
         <span>주가 10달러 미만은 항상 제외</span>
         <span>EPS는 회계 기준(GAAP), 주식 분할 보정</span>
-        <span>통과: 세 조건을 모두 숫자로 확인 · 흑자 전환: 1년 전 또는 3년 전 EPS가 적자라 계산 불가 · 비교 자료 없음: 상장 3년 미만, 외국 기업, 자료 누락</span>
+        <span>통과: 세 조건을 모두 숫자로 확인<br>흑자 전환: 적자인 EPS가 존재해 계산 불가<br>자료 없음: 상장 3년 미만 / 외국 기업 / 자료 누락</span>
         <span>데이터: 주가 Yahoo Finance · 실적 SEC EDGAR</span>
       </div>
     </div>
@@ -145,7 +145,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 const DATA = /*__DATA__*/null;
 const DEF = { qG: 25, yG: 25, roe: 17, pLo: 15, pHi: 300, vol: 100000 };
 const FLOOR = 10;
-const TABS = { num: "통과", turn: "흑자 전환", none: "비교 자료 없음" };
+const TABS = { num: "통과", turn: "흑자 전환", none: "자료 없음" };
 let T = { ...DEF };
 try {
   const s = JSON.parse(localStorage.getItem("screenerCond") || "null");
@@ -155,7 +155,7 @@ let tab = "num", selected = null, current = [];
 
 const pct = v => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
 
-/* 한 조건의 결과: "num"(숫자로 통과) / "turn"(흑자 전환이라 계산 불가) / "none"(비교 자료 없음) / false(탈락) */
+/* 한 조건의 결과: "num"(숫자로 통과) / "turn"(흑자 전환이라 계산 불가) / "none"(자료 없음) / false(탈락) */
 function growthTest(st, value, min) {
   if (st === "ok") return value >= min ? "num" : false;
   if (st === "loss") return false;

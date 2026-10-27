@@ -19,7 +19,10 @@ CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
   - NASDAQ 종합지수: 나스닥 거래소 거래량 (Yahoo `^IXIC`)
   - S&P 500: 구성종목 약 500개 거래량 합산
   - NYSE 종합지수: NYSE 거래량 (Yahoo `^NYA`)
-- 화면: 캘린더 3개월, 지수별 개수 (0~2 양호 / 3~4 주의 / 5 이상 경계)
+- 화면: 왼쪽에 지수별 개수(0~2 양호 / 3~4 주의 / 5 이상 경계), 캘린더 6개월, 날짜별 상세
+- 오른쪽: 세 지수 일봉 차트 6개월. 매물 출회일 ▼, 집계 기간 칠하기, 세 차트 기간·십자선 연동, 캘린더와 날짜 연동
+- 기록: 매일 결과를 `distribution/history.csv` 에 쌓음 (S&P 500 합산 거래량은 그날 값으로 고정)
+- 미국 장중에 실행하면 오늘의 미완성 봉은 빼고 계산
 
 ## 주식 스크리너
 ### 대상
@@ -79,6 +82,7 @@ site_common.py                  공통: 페이지 감싸기, 왼쪽 메뉴
 home/                           첫 화면
 distribution/update_data.py     매물 출회일: 데이터 수집 + 계산 + 페이지
 distribution/template.html      매물 출회일 화면
+distribution/history.csv        매물 출회일 기록 (자동 작업이 매일 추가)
 screener/build_screener.py      스크리너: 전 종목 주가 + SEC 실적 수집 → data.json, 주봉 파일
 screener/fundamentals.py        SEC 실적 정리 (분기·연간 EPS, 매출, 영업이익, ROE, 분할 보정)
 screener/render_page.py         스크리너 페이지 만들기

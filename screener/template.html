@@ -9,19 +9,19 @@
 :root {
   --bg: #f4f5f7; --surface: #ffffff; --ink: #161a22; --muted: #5d6573; --line: #dde1e8;
   --soft: #eef1f6; --accent: #2c5bd6; --accent-soft: #e6edfc;
-  --good: #1f8a4c; --bad: #d2342b; --ma: #c2410c;
+  --good: #1f8a4c; --bad: #d2342b; --ma: #111111;
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
-    --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #fb923c; color-scheme: dark;
+    --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
-  --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #fb923c; color-scheme: dark;
+  --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; color-scheme: dark;
 }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
@@ -89,6 +89,22 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .legend { margin-left: auto; font-family: var(--font-num); font-size: 0.75rem; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .legend .ma { color: var(--ma); }
 .pane-head a { font-size: 0.75rem; color: var(--accent); }
+.tool-btn {
+  font: inherit; font-size: 0.78rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 7px; padding: 3px 10px; cursor: pointer; white-space: nowrap;
+}
+.tool-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chart-wrap.measuring { cursor: crosshair; }
+#measure { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.m-line { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.m-dot { fill: var(--accent); }
+.m-box { fill: var(--surface); stroke: var(--accent); stroke-width: 1; }
+.m-text { font-family: var(--font-num); font-size: 12px; font-weight: 600; }
+.m-text.up { fill: var(--good); }
+.m-text.down { fill: var(--bad); }
+.m-sub { font-family: var(--font-num); font-size: 11px; fill: var(--muted); }
+.m-hint { position: absolute; left: 12px; top: 10px; font-size: 0.75rem; color: var(--muted); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; pointer-events: none; }
 @media (max-width: 900px) {
   html, body { height: auto; }
   .app { grid-template-columns: 1fr; height: auto; }
@@ -139,8 +155,11 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 
   <main class="detail">
     <section class="pane">
-      <div class="pane-head"><h3>주봉 차트</h3><span class="who" id="who1"></span><span class="legend" id="legend"></span></div>
-      <div class="chart-wrap"><div id="chart"></div><div class="chart-msg" id="chartMsg">왼쪽 목록에서 종목을 고르세요</div></div>
+      <div class="pane-head"><h3>주봉 차트</h3><span class="who" id="who1"></span><span class="legend" id="legend"></span>
+        <button class="tool-btn" id="measureBtn" type="button" aria-pressed="false" title="두 점을 찍어 상승·하락률 재기 (M 키)">% 측정</button></div>
+      <div class="chart-wrap" id="chartWrap"><div id="chart"></div><svg id="measure" aria-hidden="true"></svg>
+        <div class="m-hint" id="mHint" hidden></div>
+        <div class="chart-msg" id="chartMsg">왼쪽 목록에서 종목을 고르세요</div></div>
     </section>
     <section class="pane">
       <div class="pane-head"><h3>재무 확인</h3><span class="who" id="who2"></span></div>
@@ -254,7 +273,13 @@ function initChart() {
   ma = chart.addLineSeries({ color: css("--ma"), lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
   volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
   chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-  chart.subscribeCrosshairMove(p => showLegend(p && p.time ? p.time : null));
+  chart.subscribeCrosshairMove(p => {
+    showLegend(p && p.time ? p.time : null);
+    if (measure.on && measure.a && !measure.b) { measure.hover = toPoint(p); drawMeasure(); }
+  });
+  chart.subscribeClick(onChartClick);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => drawMeasure());
+  new ResizeObserver(() => requestAnimationFrame(drawMeasure)).observe(el);
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     chart.applyOptions(chartTheme());
     candles.applyOptions({ upColor: css("--good"), downColor: css("--bad"), wickUpColor: css("--good"), wickDownColor: css("--bad") });
@@ -262,6 +287,71 @@ function initChart() {
     if (chartData) setChartData(chartData);
   });
 }
+
+/* ---------- % 측정 도구: 첫 점 대비 두 번째 점의 상승·하락률 ---------- */
+const measure = { on: false, a: null, b: null, hover: null };
+
+function toPoint(param) {
+  if (!param || !param.point) return null;
+  const logical = chart.timeScale().coordinateToLogical(param.point.x);
+  const price = candles.coordinateToPrice(param.point.y);
+  if (logical == null || price == null || price <= 0) return null;
+  return { logical, price };
+}
+
+function setMeasure(on) {
+  measure.on = on; measure.a = measure.b = measure.hover = null;
+  document.getElementById("measureBtn").setAttribute("aria-pressed", String(on));
+  document.getElementById("chartWrap").classList.toggle("measuring", on);
+  if (chart) chart.applyOptions({ handleScroll: !on, handleScale: !on });  // 측정 중에는 드래그로 차트가 움직이지 않게
+  drawMeasure();
+}
+
+function drawMeasure() {
+  const svg = document.getElementById("measure"), hint = document.getElementById("mHint");
+  svg.innerHTML = "";
+  hint.hidden = !measure.on || !!measure.b;
+  hint.textContent = !measure.a ? "첫 번째 점을 클릭하세요" : "두 번째 점을 클릭하세요";
+  if (!chart || !measure.a) return;
+  const end = measure.b || measure.hover;
+  const xy = p => [chart.timeScale().logicalToCoordinate(p.logical), candles.priceToCoordinate(p.price)];
+  const [x1, y1] = xy(measure.a);
+  if (x1 == null || y1 == null) return;
+  let html = `<circle class="m-dot" cx="${x1}" cy="${y1}" r="3.5"/>`;
+  if (end) {
+    const [x2, y2] = xy(end);
+    if (x2 != null && y2 != null) {
+      const chg = (end.price / measure.a.price - 1) * 100;
+      const weeks = Math.round(end.logical - measure.a.logical);
+      const main = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`;
+      const sub = `${measure.a.price.toFixed(2)} → ${end.price.toFixed(2)} · ${Math.abs(weeks)}주`;
+      const w = Math.max(main.length * 7.6, sub.length * 6.4) + 16, h = 38;
+      const bx = Math.max(4, Math.min(x2 + 10, document.getElementById("chartWrap").clientWidth - w - 70)), by = Math.max(4, y2 - h - 8);
+      html += `<line class="m-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+        <circle class="m-dot" cx="${x2}" cy="${y2}" r="3.5"/>
+        <rect class="m-box" x="${bx}" y="${by}" width="${w}" height="${h}" rx="6"/>
+        <text class="m-text ${chg >= 0 ? "up" : "down"}" x="${bx + 8}" y="${by + 16}">${main}</text>
+        <text class="m-sub" x="${bx + 8}" y="${by + 31}">${sub}</text>`;
+    }
+  }
+  svg.innerHTML = html;
+}
+
+function onChartClick(param) {
+  if (!measure.on) return;
+  const p = toPoint(param);
+  if (!p) return;
+  if (!measure.a || measure.b) { measure.a = p; measure.b = null; }   // 세 번째 클릭은 새 측정 시작
+  else measure.b = p;
+  drawMeasure();
+}
+
+document.getElementById("measureBtn").addEventListener("click", () => setMeasure(!measure.on));
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input")) return;
+  if (e.key === "m" || e.key === "M") setMeasure(!measure.on);
+  if (e.key === "Escape" && measure.on) setMeasure(false);
+});
 
 let chartData = null;
 function setChartData(d) {
@@ -315,6 +405,7 @@ async function loadChart(r) {
     if (req !== chartReq) return;  // 그사이 다른 종목을 눌렀으면 무시
     setChartData(d);
     msg.hidden = true;
+    measure.a = measure.b = measure.hover = null; drawMeasure();
   } catch (e) {
     if (req !== chartReq) return;
     msg.textContent = `${r.t} 차트 자료가 없어요.`; msg.hidden = false;

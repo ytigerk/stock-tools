@@ -41,7 +41,16 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); li
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-header { display: grid; gap: 4px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; }
+.head-text { display: grid; gap: 4px; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; background: var(--surface); gap: 2px; }
+.seg button {
+  font: inherit; font-size: 0.85rem; border: 0; background: transparent; color: var(--muted);
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; display: grid; line-height: 1.2; text-align: center;
+}
+.seg button small { font-size: 0.68rem; font-family: var(--font-num); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
 .meta { color: var(--muted); font-size: 0.85rem; }
 .rule {
@@ -131,9 +140,15 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 
 <div class="wrap">
   <header>
-    <h1>매물 출회일 체커</h1>
-    <div class="meta" id="meta"></div>
-    <div class="rule" id="rule"></div>
+    <div class="head-text">
+      <h1>매물 출회일 체커</h1>
+      <div class="meta" id="meta"></div>
+      <div class="rule" id="rule"></div>
+    </div>
+    <div class="seg" role="group" aria-label="집계 기간">
+      <button type="button" id="w5" data-w="5">5주<small>25거래일</small></button>
+      <button type="button" id="w6" data-w="6">6주<small>30거래일</small></button>
+    </div>
   </header>
 
   <section class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></section>
@@ -149,7 +164,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     </div>
     <div class="legend">
       <span><i class="sw d"></i>빨간 칸 = 매물 출회일</span>
-      <span><i class="sw win"></i>최근 25거래일</span>
+      <span><i class="sw win"></i>최근 <b id="legendN">25</b>거래일</span>
     </div>
     <div class="grid" id="grid"></div>
   </section>
@@ -175,7 +190,9 @@ const DOW = ["월", "화", "수", "목", "금"];
 const byDate = {};
 for (const ix of DATA.indices) for (const r of ix.rows) (byDate[r.date] ||= {})[ix.key] = r;
 const tradingDays = Object.keys(byDate).sort();
-const winStart = DATA.indices[0].windowStart;
+let weeks = 5;
+try { const w = Number(localStorage.getItem("weeks")); if (w === 5 || w === 6) weeks = w; } catch (e) {}
+let winStart = "";
 const months = [...new Set(tradingDays.map(d => d.slice(0, 7)))];
 let mi = months.length - 1;
 let selected = DATA.lastDate;
@@ -195,22 +212,31 @@ function renderHeader() {
   const kst = gen.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" });
   document.getElementById("meta").innerHTML =
     `기준일 <b class="num">${DATA.lastDate}</b> (미국 장 마감) · 갱신 ${kst}`;
-  document.getElementById("rule").innerHTML =
-    `<span>판단 기준: 전일 종가 대비 <b>${DATA.rule.threshold}% 이하</b> 하락 + <b>거래량 증가</b></span>` +
-    `<span>개수: 최근 <b>${DATA.rule.window}거래일</b> 안</span>`;
-  document.getElementById("summary").innerHTML = DATA.indices.map(ix => {
-    const [cls, label] = level(ix.count);
-    return `<div class="idx"><div class="idx-name">${ix.name}</div>
-      <div class="idx-count">${ix.count}<small>개</small></div>
-      <span class="pill ${cls}">${label}</span></div>`;
-  }).join("");
-  document.getElementById("summaryNote").textContent =
-    `${winStart} ~ ${DATA.lastDate} 기준. 색 표시는 참고용(0~2 양호, 3~4 주의, 5 이상 경계).`;
   const sc = DATA.sp500Check;
   document.getElementById("foot").innerHTML = DATA.indices
     .map(ix => `<div>${ix.name} 거래량: ${ix.volBasis}</div>`).join("") +
     `<div>S&amp;P 500 구성종목 ${sc.constituents}개 중 수집 실패 ${sc.failed.length}개</div>` +
     `<div>데이터: Yahoo Finance</div>`;
+}
+
+function renderSummary() {
+  const n = weeks * 5;
+  winStart = tradingDays[Math.max(0, tradingDays.length - n)];
+  document.getElementById("rule").innerHTML =
+    `<span>판단 기준: 전일 종가 대비 <b>${DATA.rule.threshold}% 이하</b> 하락 + <b>거래량 증가</b></span>` +
+    `<span>개수: 최근 <b>${n}거래일</b> 안</span>`;
+  document.getElementById("legendN").textContent = n;
+  document.getElementById("summary").innerHTML = DATA.indices.map(ix => {
+    const count = ix.rows.filter(r => r.date >= winStart && r.dist).length;
+    const [cls, label] = level(count);
+    return `<div class="idx"><div class="idx-name">${ix.name}</div>
+      <div class="idx-count">${count}<small>개</small></div>
+      <span class="pill ${cls}">${label}</span></div>`;
+  }).join("");
+  document.getElementById("summaryNote").textContent =
+    `${winStart} ~ ${DATA.lastDate} 기준 (${weeks}주). 색 표시는 참고용(0~2 양호, 3~4 주의, 5 이상 경계).`;
+  for (const b of document.querySelectorAll(".seg button"))
+    b.setAttribute("aria-pressed", String(Number(b.dataset.w) === weeks));
 }
 
 function renderCalendar() {
@@ -272,5 +298,10 @@ function renderDetail() {
 
 document.getElementById("prev").addEventListener("click", () => { if (mi > 0) { mi--; renderCalendar(); } });
 document.getElementById("next").addEventListener("click", () => { if (mi < months.length - 1) { mi++; renderCalendar(); } });
-renderHeader(); renderCalendar(); renderDetail();
+for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
+  weeks = Number(b.dataset.w);
+  try { localStorage.setItem("weeks", String(weeks)); } catch (e) {}
+  renderSummary(); renderCalendar();
+});
+renderHeader(); renderSummary(); renderCalendar(); renderDetail();
 </script>

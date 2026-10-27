@@ -13,6 +13,7 @@ import csv
 import datetime as dt
 import io
 import json
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -25,7 +26,7 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 DIST_THRESHOLD = -0.2      # 변동률(%) 이 값 이하이면 하락으로 판단
 WINDOW = 25                # 최근 몇 거래일 안의 매물 출회일을 셀지
-SHOW_MONTHS = 2            # 화면에 보여줄 기간(개월)
+SHOW_MONTHS = 3            # 화면에 보여줄 기간(개월). 6주(30거래일) 구간이 잘리지 않도록 3개월
 CONSTITUENTS_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
 
 INDICES = [
@@ -164,6 +165,8 @@ def main():
     body = (HERE / "template.html").read_text(encoding="utf-8")
     body = body.replace("/*__DATA__*/null", json.dumps(out, ensure_ascii=False))
     (SITE / "index.html").write_text(wrap_page(body), encoding="utf-8")
+    if len(sys.argv) > 1:  # 미리보기용: python update_data.py 미리보기파일.html
+        Path(sys.argv[1]).write_text(body, encoding="utf-8")
     print(f"완료: 마지막 거래일 {last_day}, 구성종목 {sp_total}개 중 실패 {len(sp_failed)}개")
     for ix in out["indices"]:
         print(f"  {ix['name']}: 최근 {WINDOW}거래일 매물 출회일 {ix['count']}개")

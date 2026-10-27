@@ -8,6 +8,7 @@ SEC 원본은 회사마다 항목 이름, 보고 방식(누적/분기), 회계�
  - 분기 매출
  - 연간 EPS
  - ROE (최근 회계연도 순이익 / 평균 자기자본)
+ - 영업이익 (분기, 연간) : "일회성 의심" 판단용
  - 주식 분할 보정 : 분할 이전에 제출된 숫자는 분할 비율로 나눠서 맞춘다
 """
 import datetime as dt
@@ -17,6 +18,7 @@ EPS_TAGS = ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted", "Earni
 REV_TAGS = ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
             "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"]
 NI_TAGS = ["NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic"]
+OP_TAGS = ["OperatingIncomeLoss"]
 EQ_TAGS = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"]
 
 
@@ -142,6 +144,8 @@ def summarize(companyfacts, splits=()):
     eps_y = annual(gaap, EPS_TAGS, "USD/shares", splits, True)
     ni_y = annual(gaap, NI_TAGS, "USD", splits, False)
     eq = instant(gaap, EQ_TAGS, "USD")
+    op_q = quarterly(gaap, OP_TAGS, "USD", splits, False)
+    op_y = annual(gaap, OP_TAGS, "USD", splits, False)
 
     quarters = []
     for end in list(eps_q)[-8:]:
@@ -149,9 +153,12 @@ def summarize(companyfacts, splits=()):
         g, st = growth(eps_q[end]["v"], eps_q[prev]["v"] if prev else None)
         rprev = _match(rev_q, end, 364) if end in rev_q else None
         rg, _ = growth(rev_q[end]["v"], rev_q[rprev]["v"]) if end in rev_q and rprev else (None, None)
+        oprev = _match(op_q, end, 364) if end in op_q else None
+        og, ost = growth(op_q[end]["v"], op_q[oprev]["v"]) if end in op_q and oprev else (None, None)
         quarters.append({"end": end, "eps": round(eps_q[end]["v"], 4), "epsPrev": round(eps_q[prev]["v"], 4) if prev else None,
                          "epsG": g, "epsSt": st, "derived": eps_q[end]["derived"],
-                         "rev": rev_q[end]["v"] if end in rev_q else None, "revG": rg})
+                         "rev": rev_q[end]["v"] if end in rev_q else None, "revG": rg,
+                         "opG": og, "opSt": ost})
 
     out = {"quarters": quarters}
     if eps_y:
@@ -167,6 +174,12 @@ def summarize(companyfacts, splits=()):
             out["epsY"]["cagr"], out["epsY"]["st"] = None, "turnaround"
         else:
             out["epsY"]["cagr"], out["epsY"]["st"] = round(((cur / base) ** (1 / 3) - 1) * 100, 1), "ok"
+    if op_y and "epsY" in out:
+        last = out["epsY"]["end"]
+        old = _match(op_y, last, 3 * 365)
+        if last in op_y and old:
+            cur, base = op_y[last], op_y[old]
+            out["epsY"]["opCagr"] = round(((cur / base) ** (1 / 3) - 1) * 100, 1) if cur > 0 and base > 0 else None
     if ni_y:
         last = list(ni_y)[-1]
         e_end = eq.get(last)

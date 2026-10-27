@@ -1,0 +1,334 @@
+<title>CAN SLIM 스크리너</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: 한 열 도구 화면. 제목+개수 → 조건 패널 → 통과/검토 탭 → 종목 표(행을 누르면 분기 실적 펼침) */
+:root {
+  --bg: #f4f5f7; --surface: #ffffff; --ink: #161a22; --muted: #5d6573; --line: #dde1e8;
+  --soft: #eef1f6; --accent: #2c5bd6; --accent-soft: #e6edfc;
+  --good: #1f8a4c; --good-soft: #e2f3e9; --bad: #d2342b; --warn: #b26a00; --warn-soft: #fbf0dc;
+  --info: #6b4fc8; --info-soft: #eee9fb;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
+    --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44;
+    --good: #5fd08f; --good-soft: #173024; --bad: #ff6b5f; --warn: #f0b350; --warn-soft: #3a2e17;
+    --info: #b9a6ff; --info-soft: #2a2442; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
+  --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44;
+  --good: #5fd08f; --good-soft: #173024; --bad: #ff6b5f; --warn: #f0b350; --warn-soft: #3a2e17;
+  --info: #b9a6ff; --info-soft: #2a2442; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
+.wrap {
+  max-width: 1080px; margin: 0 auto; display: grid; gap: 14px; padding-block: 18px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
+h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+.meta { color: var(--muted); font-size: 0.85rem; }
+.counts { display: flex; gap: 14px; font-size: 0.85rem; color: var(--muted); }
+.counts b { color: var(--ink); font-family: var(--font-num); font-size: 1rem; }
+
+/* 조건 */
+details.cond { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+details.cond summary { cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: 0.92rem; list-style: none; display: flex; justify-content: space-between; gap: 8px; }
+details.cond summary::-webkit-details-marker { display: none; }
+details.cond summary::after { content: "펼치기"; color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+details.cond[open] summary::after { content: "접기"; }
+.cond-body { padding: 0 14px 14px; display: grid; gap: 12px; }
+.cond-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.field .row { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.field input {
+  font: inherit; font-family: var(--font-num); width: 5.5em; padding: 5px 8px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg); color: var(--ink); text-align: right;
+}
+.field input.wide { width: 7.5em; }
+.field input:focus-visible, button:focus-visible, .tab:focus-visible, tr.stock:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cond-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
+.btn { font: inherit; font-size: 0.82rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 7px; padding: 5px 12px; cursor: pointer; }
+
+/* 탭 + 표 */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tabs { display: flex; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; align-items: flex-end; }
+.tab { font: inherit; font-size: 0.9rem; border: 0; background: transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+.tab b { font-family: var(--font-num); margin-left: 4px; }
+.tabs .hint { margin-left: auto; font-size: 0.75rem; color: var(--muted); padding: 0 6px 8px; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { font-size: 0.74rem; color: var(--muted); font-weight: 600; background: var(--surface); position: sticky; top: 0; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+th .arrow { color: var(--accent); }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+tr.stock { cursor: pointer; }
+tr.stock:hover td { background: var(--soft); }
+tr.stock.open td { background: var(--accent-soft); }
+.tk { font-weight: 700; font-family: var(--font-num); }
+.nm { display: block; font-size: 0.72rem; color: var(--muted); max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
+.q3 { display: inline-flex; gap: 8px; }
+.pos { color: var(--good); }
+.neg { color: var(--bad); }
+.dim { color: var(--muted); }
+.chips { display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 99px; white-space: nowrap; }
+.chip.turn { background: var(--good-soft); color: var(--good); }
+.chip.one { background: var(--warn-soft); color: var(--warn); }
+.chip.late { background: var(--info-soft); color: var(--info); }
+td.detail { padding: 0; background: var(--soft); text-align: left; white-space: normal; position: static; }
+.det { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.det-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; font-size: 0.85rem; }
+.det-head a { color: var(--accent); }
+.det table { font-size: 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.det th, .det td { padding: 6px 8px; position: static; }
+.det td:first-child, .det th:first-child { position: static; }
+.mark { font-size: 0.7rem; color: var(--muted); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 0.9rem; }
+footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
+@media (max-width: 560px) {
+  th, td { padding: 7px 8px; }
+  .nm { max-width: 9em; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>CAN SLIM 스크리너</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <details class="cond" id="cond">
+    <summary>조건</summary>
+    <div class="cond-body">
+      <div class="cond-grid">
+        <label class="field"><span>최근 3분기 EPS 증가율 (각각, 전년 동기 대비)</span>
+          <span class="row"><input id="qG" type="number" step="1" inputmode="decimal">% 이상 · 최근 분기는 직전보다 커야 함</span></label>
+        <label class="field"><span>연간 EPS 3년 연평균 증가율</span>
+          <span class="row"><input id="yG" type="number" step="1" inputmode="decimal">% 이상 (복리)</span></label>
+        <label class="field"><span>ROE (최근 회계연도)</span>
+          <span class="row"><input id="roe" type="number" step="1" inputmode="decimal">% 이상</span></label>
+        <div class="field"><span>주가 · 나스닥 (달러)</span>
+          <span class="row"><input id="pNqLo" type="number" step="1" aria-label="나스닥 최저가"> ~ <input id="pNqHi" type="number" step="1" aria-label="나스닥 최고가"></span></div>
+        <div class="field"><span>주가 · NYSE와 기타 거래소 (달러)</span>
+          <span class="row"><input id="pNyLo" type="number" step="1" aria-label="NYSE 최저가"> ~ <input id="pNyHi" type="number" step="1" aria-label="NYSE 최고가"></span></div>
+        <label class="field"><span>50일 평균 거래량</span>
+          <span class="row"><input id="vol" class="wide" type="number" step="10000" inputmode="numeric">주 이상</span></label>
+      </div>
+      <div class="cond-foot">
+        <span>주가 10달러 미만은 항상 제외 · EPS와 영업이익은 회계 기준(GAAP), 주식 분할 보정</span>
+        <button class="btn" id="reset" type="button">기본값으로</button>
+      </div>
+    </div>
+  </details>
+
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabPass" data-tab="pass"></button>
+      <button class="tab" role="tab" id="tabReview" data-tab="review"></button>
+      <span class="hint">행을 누르면 분기 실적이 펼쳐져요</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div><span class="chip turn">흑자 전환</span> 1년 전 같은 분기(또는 3년 전 연간) EPS가 적자라 증가율 계산 불가 → 통과로 간주</div>
+    <div><span class="chip one">일회성 의심</span> EPS 증가율은 기준 미달이지만 같은 기간 영업이익은 기준 이상 증가</div>
+    <div><span class="chip late">실적 지연</span> 최근 분기 실적이 190일 넘게 갱신되지 않음 (SEC 제출 대기 또는 데이터 누락)</div>
+    <div id="src"></div>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const DEF = { qG: 25, yG: 25, roe: 17, pNqLo: 15, pNqHi: 300, pNyLo: 20, pNyHi: 300, vol: 100000 };
+const FLOOR = 10;
+const LATE_DAYS = 190;
+let T = { ...DEF };
+try { const s = JSON.parse(localStorage.getItem("screenerCond") || "null"); if (s) T = { ...DEF, ...s }; } catch (e) {}
+let tab = "pass", sortKey = "q0", sortDir = -1, openT = null;
+
+const daysBetween = (a, b) => (new Date(a) - new Date(b)) / 864e5;
+const pct = v => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+const cls = v => v == null ? "dim" : v >= 0 ? "pos" : "neg";
+
+/* 한 분기 판정: ok / turn(흑자 전환) / one(일회성 의심) / fail */
+function qTest(q) {
+  if (q.epsSt === "turnaround") return "turn";
+  if (q.epsSt === "ok" && q.epsG >= T.qG) return "ok";
+  if (q.opSt === "ok" && q.opG >= T.qG) return "one";
+  return "fail";
+}
+
+function judge(r) {
+  const lo = Math.max(FLOOR, r.ex === "Nasdaq" ? T.pNqLo : T.pNyLo);
+  const hi = r.ex === "Nasdaq" ? T.pNqHi : T.pNyHi;
+  if (r.price < lo || r.price > hi || r.vol50 < T.vol) return null;
+  const f = r.f;
+  if (!f || f.quarters.length < 3) return null;
+  const q3 = f.quarters.slice(-3), flags = new Set();
+  if (daysBetween(DATA.priceDate, q3[2].end) > LATE_DAYS) flags.add("late");
+  const res = q3.map(qTest);
+  if (res.includes("fail")) return null;
+  res.forEach(x => x !== "ok" && flags.add(x));
+  // 가속: 최근 분기 증가율 > 직전 분기 증가율 (같으면 탈락)
+  const [ra, rb] = [res[2], res[1]], a = q3[2], b = q3[1];
+  if (ra === "turn" || rb === "turn") flags.add("turn");
+  else if (!(a.epsSt === "ok" && b.epsSt === "ok" && a.epsG > b.epsG)) {
+    if (ra === "one" || rb === "one") flags.add("one"); else return null;
+  }
+  // 연간 3년 복리
+  const y = f.epsY || {};
+  if (y.st === "turnaround") flags.add("turn");
+  else if (!(y.st === "ok" && y.cagr >= T.yG)) {
+    if (y.opCagr != null && y.opCagr >= T.yG) flags.add("one"); else return null;
+  }
+  const roe = f.roe && f.roe.roe;
+  if (roe == null || roe < T.roe) return null;
+  return [...flags];
+}
+
+const COLS = [
+  { k: "t", label: "종목", sort: r => r.t },
+  { k: "ex", label: "거래소", sort: r => r.ex },
+  { k: "price", label: "주가", sort: r => r.price },
+  { k: "hi", label: "52주 고가 대비", sort: r => r.price / r.hi52 - 1 },
+  { k: "q", label: "최근 3분기 EPS 증가율", sort: null },
+  { k: "q0", label: "최근 분기", sort: r => r.f.quarters.at(-1).epsG ?? -1e9 },
+  { k: "y", label: "연간 3년", sort: r => r.f.epsY?.cagr ?? -1e9 },
+  { k: "roe", label: "ROE", sort: r => r.f.roe?.roe ?? -1e9 },
+  { k: "vol", label: "50일 평균 거래량", sort: r => r.vol50 },
+  { k: "flags", label: "표시", sort: null },
+];
+const CHIP = { turn: ["turn", "흑자 전환"], one: ["one", "일회성 의심"], late: ["late", "실적 지연"] };
+
+function qCell(q) {
+  if (q.epsSt === "turnaround") return `<span class="pos">흑전</span>`;
+  if (q.epsSt === "loss") return `<span class="neg">적자</span>`;
+  return `<span class="${cls(q.epsG)}">${pct(q.epsG)}</span>`;
+}
+
+function render() {
+  const pass = [], review = [];
+  for (const r of DATA.rows) {
+    const fl = judge(r);
+    if (fl == null) continue;
+    (fl.length ? review : pass).push({ r, fl });
+  }
+  document.getElementById("counts").innerHTML =
+    `<span>통과 <b>${pass.length}</b></span><span>검토 필요 <b>${review.length}</b></span><span>전체 <b>${DATA.rows.length.toLocaleString()}</b></span>`;
+  document.getElementById("tabPass").innerHTML = `통과<b>${pass.length}</b>`;
+  document.getElementById("tabReview").innerHTML = `검토 필요<b>${review.length}</b>`;
+  for (const b of document.querySelectorAll(".tab")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+
+  document.getElementById("headRow").innerHTML = COLS.map(c => {
+    const arrow = c.k === sortKey ? `<span class="arrow">${sortDir < 0 ? " ▼" : " ▲"}</span>` : "";
+    return `<th class="${c.sort ? "sortable" : ""}" data-k="${c.k}">${c.label}${arrow}</th>`;
+  }).join("");
+
+  const list = (tab === "pass" ? pass : review).slice();
+  const col = COLS.find(c => c.k === sortKey);
+  if (col && col.sort) list.sort((x, y) => {
+    const a = col.sort(x.r), b = col.sort(y.r);
+    return (a > b ? 1 : a < b ? -1 : 0) * sortDir;
+  });
+
+  const body = document.getElementById("body");
+  if (!list.length) {
+    body.innerHTML = `<tr><td colspan="${COLS.length}" class="empty">조건을 만족하는 종목이 없어요. 위의 조건을 조금 완화해 보세요.</td></tr>`;
+    return;
+  }
+  body.innerHTML = list.map(({ r, fl }) => {
+    const f = r.f, q3 = f.quarters.slice(-3), off = r.price / r.hi52 - 1;
+    const row = `<tr class="stock ${openT === r.t ? "open" : ""}" tabindex="0" data-t="${r.t}">
+      <td><span class="tk">${r.t}</span><span class="nm">${r.name}</span></td>
+      <td>${r.ex}</td>
+      <td class="num">$${r.price.toFixed(2)}</td>
+      <td class="num ${off >= -0.15 ? "" : "dim"}">${(off * 100).toFixed(1)}%</td>
+      <td class="num"><span class="q3">${q3.map(qCell).join("")}</span></td>
+      <td class="num">${qCell(q3[2])}</td>
+      <td class="num">${f.epsY?.st === "turnaround" ? `<span class="pos">흑전</span>` : `<span class="${cls(f.epsY?.cagr)}">${pct(f.epsY?.cagr)}</span>`}</td>
+      <td class="num">${pct(f.roe?.roe)}</td>
+      <td class="num">${Math.round(r.vol50).toLocaleString()}</td>
+      <td><span class="chips">${fl.map(x => `<span class="chip ${CHIP[x][0]}">${CHIP[x][1]}</span>`).join("")}</span></td></tr>`;
+    return openT === r.t ? row + detailRow(r) : row;
+  }).join("");
+}
+
+function detailRow(r) {
+  const f = r.f, y = f.epsY || {};
+  const rows = f.quarters.slice().reverse().map(q => `<tr>
+    <td>${q.end}${q.derived ? ' <span class="mark">(연간−9개월 계산)</span>' : ""}</td>
+    <td class="num">${q.eps.toFixed(2)}</td><td class="num dim">${q.epsPrev == null ? "–" : q.epsPrev.toFixed(2)}</td>
+    <td class="num">${qCell(q)}</td><td class="num ${cls(q.opG)}">${q.opSt === "turnaround" ? "흑전" : pct(q.opG)}</td>
+    <td class="num ${cls(q.revG)}">${pct(q.revG)}</td></tr>`).join("");
+  return `<tr><td class="detail" colspan="${COLS.length}"><div class="det">
+    <div class="det-head"><b>${r.t}</b><span>${r.name}</span>
+      <span>연간 EPS ${y.eps3y ?? "–"} → ${y.eps ?? "–"} (${y.end ?? ""} 회계연도)</span>
+      <span>연간 영업이익 3년 연평균 ${pct(y.opCagr)}</span>
+      <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(r.t)}" target="_blank" rel="noopener">TradingView에서 열기 ↗</a></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>분기말</th><th>EPS</th><th>1년 전</th><th>EPS 증가율</th><th>영업이익 증가율</th><th>매출 증가율</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+  </div></td></tr>`;
+}
+
+function bindInputs() {
+  for (const k of Object.keys(DEF)) {
+    const el = document.getElementById(k);
+    el.value = T[k];
+    el.addEventListener("input", () => {
+      const v = Number(el.value);
+      if (el.value === "" || Number.isNaN(v)) return;
+      T[k] = v; save(); render();
+    });
+  }
+}
+function save() { try { localStorage.setItem("screenerCond", JSON.stringify(T)); } catch (e) {} }
+
+document.getElementById("reset").addEventListener("click", () => {
+  T = { ...DEF }; save();
+  for (const k of Object.keys(DEF)) document.getElementById(k).value = T[k];
+  render();
+});
+for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => { tab = b.dataset.tab; openT = null; render(); });
+document.getElementById("headRow").addEventListener("click", e => {
+  const th = e.target.closest("th.sortable"); if (!th) return;
+  if (sortKey === th.dataset.k) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = th.dataset.k === "t" || th.dataset.k === "ex" ? 1 : -1; }
+  render();
+});
+const body = document.getElementById("body");
+body.addEventListener("click", e => {
+  const tr = e.target.closest("tr.stock"); if (!tr) return;
+  openT = openT === tr.dataset.t ? null : tr.dataset.t; render();
+});
+body.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { const tr = e.target.closest("tr.stock"); if (tr) { e.preventDefault(); tr.click(); } }
+});
+
+const gen = new Date(DATA.generatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" });
+document.getElementById("meta").innerHTML = `주가 기준일 <b class="num">${DATA.priceDate}</b> · 갱신 ${gen}`;
+document.getElementById("src").textContent = "데이터: 주가 Yahoo Finance · 실적 SEC EDGAR";
+if (window.matchMedia("(min-width: 700px)").matches) document.getElementById("cond").open = true;
+bindInputs(); render();
+</script>

@@ -139,8 +139,10 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
   </details>
 
   <section class="panel">
-    <div class="tabs">
-      <span class="tab" aria-selected="true" id="resTitle"></span>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" type="button" data-tab="num"></button>
+      <button class="tab" role="tab" type="button" data-tab="turn"></button>
+      <button class="tab" role="tab" type="button" data-tab="none"></button>
       <span class="hint">행을 누르면 분기 실적이 펼쳐져요 · 열 제목을 누르면 정렬</span>
     </div>
     <div class="tbl-wrap">
@@ -152,8 +154,9 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
   </section>
 
   <footer>
-    <div>"흑전": 1년 전(또는 3년 전) EPS가 적자라 증가율 계산 불가 → 통과로 처리</div>
-    <div>"–": 비교할 자료가 없음 (상장 3년 미만, 외국 기업의 분기 실적, SEC 요약 자료 누락 등) → 통과로 처리</div>
+    <div>통과: 세 조건(최근 분기 EPS, 연간 EPS 3년, ROE)을 모두 숫자로 확인</div>
+    <div>흑자 전환: 1년 전(또는 3년 전) EPS가 적자라 증가율을 계산할 수 없는 조건이 있음 ("흑전")</div>
+    <div>비교 자료 없음: 상장 3년 미만, 외국 기업(분기 실적 없음), SEC 요약 자료 누락 등으로 확인할 수 없는 조건이 있음 ("–")</div>
     <div>ROE: 최근 4분기(TTM). 분기 자료가 없는 외국 기업은 최근 회계연도 기준이고 "연간"으로 표시</div>
     <div id="src"></div>
   </footer>
@@ -165,31 +168,34 @@ const DEF = { qG: 25, yG: 25, roe: 17, pNqLo: 15, pNqHi: 300, pNyLo: 20, pNyHi: 
 const FLOOR = 10;
 let T = { ...DEF };
 try { const s = JSON.parse(localStorage.getItem("screenerCond") || "null"); if (s) T = { ...DEF, ...s }; } catch (e) {}
-let sortKey = "q0", sortDir = -1, openT = null;
+let tab = "num", sortKey = "q0", sortDir = -1, openT = null;
+const TABS = { num: "통과", turn: "흑자 전환", none: "비교 자료 없음" };
 
 const pct = v => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
 const cls = v => v == null ? "dim" : v >= 0 ? "pos" : "neg";
 
-/* 기준 이상이면 통과. 계산할 수 없으면(전년 적자, 자료 없음) 통과. 현재 적자이거나 기준 미달이면 탈락 */
-function passGrowth(st, value, min) {
-  if (st === "ok") return value >= min;
+/* 한 조건의 결과: "num"(숫자로 통과) / "turn"(흑자 전환이라 계산 불가) / "none"(비교 자료 없음) / false(탈락) */
+function growthTest(st, value, min) {
+  if (st === "ok") return value >= min ? "num" : false;
   if (st === "loss") return false;
-  return true; // turnaround(흑자 전환) 또는 비교 자료 없음
+  return st === "turnaround" ? "turn" : "none";
 }
 
+/* 결과: false(탈락) 또는 탭 이름. 흑자 전환이 하나라도 있으면 "turn", 그다음 자료 없음이 있으면 "none" */
 function judge(r) {
   const f = r.f;
   if (!f || (!f.quarters.length && !f.epsY)) return false;  // EPS가 아예 없는 종목(신탁, 펀드 등) 제외
   const lo = Math.max(FLOOR, r.ex === "Nasdaq" ? T.pNqLo : T.pNyLo);
   const hi = r.ex === "Nasdaq" ? T.pNqHi : T.pNyHi;
   if (r.price < lo || r.price > hi || r.vol50 < T.vol) return false;
-  const q = f.quarters.at(-1);
-  if (q && !passGrowth(q.epsSt, q.epsG, T.qG)) return false;
-  const y = f.epsY || {};
-  if (!passGrowth(y.st, y.cagr, T.yG)) return false;
-  const roe = f.roe && f.roe.roe;
-  if (roe != null && roe < T.roe) return false;
-  return true;
+  const q = f.quarters.at(-1), y = f.epsY || {}, roe = f.roe && f.roe.roe;
+  const res = [
+    q ? growthTest(q.epsSt, q.epsG, T.qG) : "none",
+    growthTest(y.st, y.cagr, T.yG),
+    roe == null ? "none" : roe >= T.roe ? "num" : false,
+  ];
+  if (res.includes(false)) return false;
+  return res.includes("turn") ? "turn" : res.includes("none") ? "none" : "num";
 }
 
 function growthCell(st, v) {
@@ -210,10 +216,15 @@ const COLS = [
 ];
 
 function render() {
-  const list = DATA.rows.filter(judge);
-  document.getElementById("counts").innerHTML =
-    `<span>결과 <b>${list.length}</b></span><span>전체 <b>${DATA.rows.length.toLocaleString()}</b></span>`;
-  document.getElementById("resTitle").innerHTML = `결과<b>${list.length}</b>`;
+  const groups = { num: [], turn: [], none: [] };
+  for (const r of DATA.rows) { const g = judge(r); if (g) groups[g].push(r); }
+  document.getElementById("counts").innerHTML = Object.keys(TABS).map(k => `<span>${TABS[k]} <b>${groups[k].length}</b></span>`).join("") +
+    `<span>전체 <b>${DATA.rows.length.toLocaleString()}</b></span>`;
+  for (const b of document.querySelectorAll(".tab")) {
+    b.innerHTML = `${TABS[b.dataset.tab]}<b>${groups[b.dataset.tab].length}</b>`;
+    b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+  }
+  const list = groups[tab];
   document.getElementById("headRow").innerHTML = COLS.map(c => {
     const arrow = c.k === sortKey ? `<span class="arrow">${sortDir < 0 ? " ▼" : " ▲"}</span>` : "";
     return `<th class="sortable" data-k="${c.k}">${c.label}${arrow}</th>`;
@@ -272,6 +283,7 @@ document.getElementById("reset").addEventListener("click", () => {
   for (const k of Object.keys(DEF)) document.getElementById(k).value = T[k];
   render();
 });
+for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => { tab = b.dataset.tab; openT = null; render(); });
 document.getElementById("headRow").addEventListener("click", e => {
   const th = e.target.closest("th.sortable"); if (!th) return;
   if (sortKey === th.dataset.k) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = th.dataset.k === "t" || th.dataset.k === "ex" ? 1 : -1; }

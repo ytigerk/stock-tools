@@ -1,35 +1,75 @@
 # stock-tools
 
-CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음.
+CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
 
 사이트: https://ytigerk.github.io/stock-tools
 
 ## 도구
-| 도구 | 경로 | 상태 |
+| 도구 | 경로 | 내용 |
 |---|---|---|
-| 매물 출회일 체커 | `distribution/` | 완성 |
-| 과거 대장주 서칭 | | 예정 |
-| 스크리너 + 차트 뷰어 | | 예정 |
+| 매물 출회일 체커 | `distribution/` | NASDAQ · S&P 500 · NYSE 매물 출회일 캘린더 |
+| 주식 스크리너 | `screener/` | 조건 거르기 + 주봉 차트 + 분기 실적 |
+
+두 도구는 왼쪽 메뉴로 오간다.
 
 ## 매물 출회일 체커 규칙
 - 매물 출회일: 전일 종가 대비 **-0.2% 이하** 하락 + 거래량 **증가**
-- 개수: 최근 **25거래일** 안의 매물 출회일 (소멸 규칙 없음)
+- 개수: 최근 **5주(25거래일) / 6주(30거래일)** 선택. 소멸 규칙 없음
 - 거래량 기준
   - NASDAQ 종합지수: 나스닥 거래소 거래량 (Yahoo `^IXIC`)
   - S&P 500: 구성종목 약 500개 거래량 합산
   - NYSE 종합지수: NYSE 거래량 (Yahoo `^NYA`)
-- 데이터: Yahoo Finance (무료, 비공식)
+- 화면: 캘린더 3개월, 지수별 개수 (0~2 양호 / 3~4 주의 / 5 이상 경계)
+
+## 주식 스크리너
+### 대상
+나스닥 · NYSE 등에 상장된 보통주. OTC, 우선주, 워런트, 유닛, ETF·펀드형 종목은 제외.
+
+### 조건 (화면에서 숫자 변경 가능, 기본값)
+- 최근 분기 EPS 증가율 (전년 동기 대비) **30% 이상**
+- 연간 EPS 3년 복리 연평균 **25% 이상**
+- ROE **17% 이상** (최근 4분기, 외국 기업은 최근 회계연도)
+- 주가 **15 ~ 300달러** (10달러 미만은 항상 제외)
+- 50일 평균 거래량 **10만 주 이상**
+
+### 결과 탭
+- 통과: 세 조건을 모두 숫자로 확인
+- 흑자 전환: 적자인 EPS가 존재해 계산 불가 (탈락 아님)
+- 자료 없음: 상장 3년 미만 / 외국 기업 / 자료 누락 (탈락 아님)
+
+### 종목을 고르면
+- 주봉 차트 2년 + 10주 이동평균선 + 거래량 (TradingView Lightweight Charts)
+- % 측정 도구: 버튼 또는 M 키 → 두 점 클릭 → 상승·하락률과 걸린 주 수. Esc로 끄기
+- 재무 확인: 최근 8분기 EPS, 전년 동기 EPS, EPS 증가율, 매출액, 매출 증가율 (모두 전년 동기 대비)
+
+### 실적 데이터 정리 방식
+- 출처: SEC EDGAR (회사가 제출한 공식 실적, 무료)
+- EPS는 회계 기준(GAAP). 일회성 손익을 뺀 조정 EPS가 아님
+- 4분기는 "연간 − 9개월 누적"으로 계산
+- 주식 분할은 Yahoo 분할 기록으로 보정
+- 외국 기업(20-F, 40-F 제출)은 연간 실적만 있음
+
+### 알려진 한계
+- SEC 반영은 회사가 정식 보고서를 낸 뒤라 실적 발표보다 며칠~몇 주 늦음
+- 일부 회사는 SEC 요약 자료에 EPS가 빠져 있음 (주식 종류별로만 보고하는 경우)
 
 ## 자동 갱신
-`.github/workflows/update-site.yml` 이 한국 시간 화~토 오전 7시쯤 실행되어 사이트를 새로 만든다.
+`.github/workflows/update-site.yml` 이 한국 시간 화~토 오전 7시쯤 실행되어 사이트를 새로 만든다 (약 15~20분).
 Actions 탭 → "사이트 갱신" → **Run workflow** 로 직접 실행할 수도 있다.
+
+필요한 저장소 비밀값 (Settings → Secrets and variables → Actions)
+- `SEC_USER_AGENT`: SEC 접속용 이름표 (`이름 이메일`). SEC 정책상 필요
 
 ## 폴더 구조
 ```
-home/index.html               첫 화면 (도구 목록)
-distribution/update_data.py   데이터 수집 + 매물 출회일 계산 + 페이지 만들기
-distribution/template.html    매물 출회일 체커 화면
-distribution/sp500_constituents.csv   S&P 500 구성종목 목록 (예비용)
-.github/workflows/            자동 실행 설정
+site_common.py                  공통: 페이지 감싸기, 왼쪽 메뉴
+home/                           첫 화면
+distribution/update_data.py     매물 출회일: 데이터 수집 + 계산 + 페이지
+distribution/template.html      매물 출회일 화면
+screener/build_screener.py      스크리너: 전 종목 주가 + SEC 실적 수집 → data.json, 주봉 파일
+screener/fundamentals.py        SEC 실적 정리 (분기·연간 EPS, 매출, 영업이익, ROE, 분할 보정)
+screener/render_page.py         스크리너 페이지 만들기
+screener/template.html          스크리너 화면
+.github/workflows/              자동 실행 설정
 ```
 `site/` 폴더는 자동으로 만들어지는 결과물이라 저장소에 올리지 않는다.

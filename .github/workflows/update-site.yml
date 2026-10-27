@@ -22,16 +22,22 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 데이터 받기 + 매물 출회일 계산 + 페이지 만들기
+      - name: 첫 화면 + 매물 출회일 체커
         run: |
-          mkdir -p site
-          cp home/index.html site/index.html
+          python home/build_home.py
           python distribution/update_data.py
+      - name: 주식 스크리너 (전 종목 주가 + SEC 실적, 약 10분)
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: |
+          python screener/build_screener.py
+          python screener/render_page.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

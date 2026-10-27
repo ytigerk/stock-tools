@@ -7,16 +7,11 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from site_common import nav, wrap_page  # noqa: E402
+
 HERE = Path(__file__).parent
 OUT = HERE.parent / "site" / "screener"
-
-
-def wrap_page(body):
-    return ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-            '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}'
-            'body{margin:0;font-size:14px}[hidden]{display:none!important}</style>\n'
-            '</head>\n<body>\n' + body + '\n</body>\n</html>\n')
 
 
 def main():
@@ -26,6 +21,7 @@ def main():
         r.pop("date", None)
     body = (HERE / "template.html").read_text(encoding="utf-8")
     body = body.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    body = body.replace("<!--__NAV__-->", nav("screener"))
     (OUT / "index.html").write_text(wrap_page(body), encoding="utf-8")
     if len(sys.argv) > 1:
         Path(sys.argv[1]).write_text(body, encoding="utf-8")

@@ -1,39 +1,33 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stock Tools</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap">
 <style>
+/* Layout: 가운데 한 열. 제목 아래 도구 두 개 */
 :root { --bg: #f4f5f7; --surface: #fff; --ink: #161a22; --muted: #5d6573; --line: #dde1e8; --accent: #2c5bd6;
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c; --accent: #7aa2ff; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c; --accent: #7aa2ff; color-scheme: dark; }
 }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
-.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 16px; padding-block: 32px;
+:root[data-theme="dark"] { --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c; --accent: #7aa2ff; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 16px; padding-block: 40px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 h1 { margin: 0; font-size: 1.5rem; }
 p { margin: 0; color: var(--muted); }
+.note { font-size: 0.8rem; }
 .tools { display: grid; gap: 10px; }
 a.tool { display: grid; gap: 2px; text-decoration: none; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
 a.tool:hover, a.tool:focus-visible { border-color: var(--accent); outline: none; }
 .tool b { font-size: 1.05rem; }
 .tool span { color: var(--muted); font-size: 0.88rem; }
-.soon { opacity: 0.5; pointer-events: none; }
 </style>
-</head>
-<body>
 <div class="wrap">
   <h1>Stock Tools</h1>
   <p>CAN SLIM 매매 공부용 개인 도구 모음</p>
   <div class="tools">
-    <a class="tool" href="distribution/"><b>매물 출회일 체커</b><span>NASDAQ · S&amp;P 500 · NYSE 매물 출회일 캘린더 (매일 오전 7시 갱신)</span></a>
-    <a class="tool soon" aria-disabled="true"><b>과거 대장주 서칭</b><span>준비 중</span></a>
-    <a class="tool soon" aria-disabled="true"><b>스크리너 + 차트</b><span>준비 중</span></a>
+    <a class="tool" href="distribution/index.html"><b>매물 출회일 체커</b><span>NASDAQ · S&amp;P 500 · NYSE 매물 출회일 캘린더</span></a>
+    <a class="tool" href="screener/index.html"><b>주식 스크리너</b><span>EPS 증가율 · ROE · 주가 · 거래량 조건으로 미국 주식 거르기</span></a>
   </div>
+  <p class="note">매일 한국 시간 오전 7시쯤 갱신</p>
 </div>
-</body>
-</html>

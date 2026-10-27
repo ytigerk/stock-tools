@@ -20,6 +20,9 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from site_common import nav, wrap_page  # noqa: E402
+
 HERE = Path(__file__).parent
 SITE = HERE.parent / "site" / "distribution"   # 완성된 웹페이지가 저장될 폴더
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36"}
@@ -121,15 +124,6 @@ def compute(bars):
     return rows
 
 
-def wrap_page(body):
-    """화면 파일(template.html)을 완전한 웹페이지 형식으로 감싼다."""
-    return ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-            '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}'
-            'body{margin:0;font-size:14px}[hidden]{display:none!important}</style>\n'
-            '</head>\n<body>\n' + body + '\n</body>\n</html>\n')
-
-
 def main():
     rng = "6mo"  # 2개월 표시 + 앞쪽 여유분
     out = {"generatedAt": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
@@ -164,6 +158,7 @@ def main():
     (SITE / "data.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     body = (HERE / "template.html").read_text(encoding="utf-8")
     body = body.replace("/*__DATA__*/null", json.dumps(out, ensure_ascii=False))
+    body = body.replace("<!--__NAV__-->", nav("distribution"))
     (SITE / "index.html").write_text(wrap_page(body), encoding="utf-8")
     if len(sys.argv) > 1:  # 미리보기용: python update_data.py 미리보기파일.html
         Path(sys.argv[1]).write_text(body, encoding="utf-8")

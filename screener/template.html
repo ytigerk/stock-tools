@@ -88,6 +88,15 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .chart-msg { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; text-align: center; padding: 16px; }
 .legend { margin-left: auto; font-family: var(--font-num); font-size: 0.75rem; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .legend .ma { color: var(--ma); }
+.fin { flex: 1; min-height: 0; overflow: auto; background: var(--surface); }
+.fin table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.fin th, .fin td { padding: 7px 18px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.fin th { position: sticky; top: 0; background: var(--surface); font-size: 0.74rem; color: var(--muted); font-weight: 600; }
+.fin th:first-child, .fin td:first-child { text-align: left; }
+.fin td { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.fin .grp { border-left: 1px solid var(--line); }
+.fin .mark { font-family: var(--font-ui); font-size: 0.7rem; color: var(--muted); margin-left: 4px; }
+.fin tbody tr:first-child td { font-weight: 600; }
 .pane-head a { font-size: 0.75rem; color: var(--accent); }
 .tool-btn {
   font: inherit; font-size: 0.78rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
@@ -162,8 +171,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
         <div class="chart-msg" id="chartMsg">왼쪽 목록에서 종목을 고르세요</div></div>
     </section>
     <section class="pane">
-      <div class="pane-head"><h3>재무 확인</h3><span class="who" id="who2"></span></div>
-      <div class="pane-body">다음 단계에서 만들 자리예요</div>
+      <div class="pane-head"><h3>재무 확인</h3><span class="who" id="who2"></span><span class="legend">최근 8분기 · 최신 분기가 위</span></div>
+      <div class="fin" id="fin"><div class="pane-body">왼쪽 목록에서 종목을 고르세요</div></div>
     </section>
   </main>
 </div>
@@ -235,12 +244,46 @@ function select(t, focus) {
   showSelected();
 }
 
+/* ---------- 재무 확인: 최근 8분기 EPS와 증가율, 분기 매출액 ---------- */
+function money(v) {
+  if (v == null) return "–";
+  const a = Math.abs(v), sign = v < 0 ? "-" : "";
+  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(1)}M`;
+  return `${sign}$${Math.round(a).toLocaleString()}`;
+}
+function growthCell(st, g) {
+  if (st === "turnaround") return `<span class="pos">흑자 전환</span>`;
+  if (st === "loss") return `<span class="neg">적자</span>`;
+  if (g == null) return `<span class="dim">–</span>`;
+  return `<span class="${g >= 0 ? "pos" : "neg"}">${pct(g)}</span>`;
+}
+function showFin(r) {
+  const el = document.getElementById("fin");
+  if (!r) { el.innerHTML = `<div class="pane-body">왼쪽 목록에서 종목을 고르세요</div>`; return; }
+  const qs = r.f.quarters.slice().reverse();
+  if (!qs.length) {
+    el.innerHTML = `<div class="pane-body">분기 실적 자료가 없어요${r.f.foreign ? " (외국 기업은 연간 실적만 제출해요)" : ""}</div>`;
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>분기말</th><th>EPS</th><th>전년 동기 EPS</th><th>EPS 증가율</th><th class="grp">매출액</th><th>매출 증가율</th></tr></thead>
+    <tbody>${qs.map(q => `<tr>
+      <td>${q.end}${q.derived ? '<span class="mark">연간−9개월</span>' : ""}</td>
+      <td>${q.eps.toFixed(2)}</td>
+      <td class="dim">${q.epsPrev == null ? "–" : q.epsPrev.toFixed(2)}</td>
+      <td>${growthCell(q.epsSt, q.epsG)}</td>
+      <td class="grp">${money(q.rev)}</td>
+      <td>${growthCell(null, q.revG)}</td></tr>`).join("")}</tbody></table>`;
+}
+
 let shownChart = null;
 function showSelected() {
   const r = DATA.rows.find(x => x.t === selected);
   const text = r ? `${r.t} · ${r.name}` : "왼쪽 목록에서 종목을 고르세요";
   document.getElementById("who1").innerHTML = r ? `${r.t} · ${r.name} · <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(r.t)}" target="_blank" rel="noopener">TradingView ↗</a>` : text;
   document.getElementById("who2").textContent = text;
+  showFin(r);
   if (r && shownChart !== r.t) { shownChart = r.t; loadChart(r); }
 }
 

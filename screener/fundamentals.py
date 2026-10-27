@@ -207,6 +207,8 @@ def summarize(companyfacts, splits=()):
         out["quarters"].append({"end": end, "eps": round(eps_q[end]["v"], 4),
                                 "epsPrev": round(eps_q[prev]["v"], 4) if prev else None,
                                 "epsG": g, "epsSt": st, "derived": eps_q[end]["derived"],
+                                "rev": rev_q[end]["v"] if end in rev_q else None,
+                                "rev": round(rev_q[end]["v"]) if end in rev_q else None,
                                 "revG": rg, "opG": og, "opSt": ost})
 
     if eps_y:

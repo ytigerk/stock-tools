@@ -36,21 +36,21 @@
 }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
 .wrap {
-  max-width: 760px; margin: 0 auto; display: grid; gap: 20px;
-  padding-block: 24px 40px;
+  max-width: 760px; margin: 0 auto; display: grid; gap: 14px;
+  padding-block: 18px 32px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 header { display: grid; gap: 4px; }
-.tally { display: grid; gap: 8px; }
-.tally-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.tally-label { font-size: 0.85rem; font-weight: 600; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; background: var(--surface); gap: 2px; }
+.tally { display: grid; gap: 6px; }
+.tally-head { display: grid; justify-items: end; gap: 3px; }
+.tally-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--surface); gap: 2px; }
 .seg button {
-  font: inherit; font-size: 0.85rem; border: 0; background: transparent; color: var(--muted);
-  padding: 6px 12px; border-radius: 6px; cursor: pointer; display: grid; line-height: 1.2; text-align: center;
+  font: inherit; font-size: 0.8rem; border: 0; background: transparent; color: var(--muted);
+  padding: 4px 10px; border-radius: 6px; cursor: pointer; line-height: 1.3; white-space: nowrap;
 }
-.seg button small { font-size: 0.68rem; font-family: var(--font-num); }
+.seg button small { font-size: 0.7rem; margin-left: 4px; opacity: 0.85; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
@@ -65,13 +65,13 @@ h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; te
 .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .idx {
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-  padding: 12px 14px; display: grid; gap: 4px; min-width: 0;
+  padding: 8px 12px; display: grid; gap: 2px; min-width: 0;
 }
 .idx-name { font-size: 0.8rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
-.idx-count { font-family: var(--font-num); font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.idx-count { font-family: var(--font-num); font-size: 1.6rem; font-weight: 600; line-height: 1.15; }
 .idx-count small { font-size: 0.85rem; color: var(--muted); font-weight: 400; margin-left: 2px; }
 .pill {
-  justify-self: start; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  justify-self: start; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 99px;
 }
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
 .pill.warn { background: var(--warn-soft); color: var(--warn); }
@@ -132,8 +132,8 @@ td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 @media (max-width: 520px) {
   .summary { gap: 8px; }
-  .idx { padding: 10px; }
-  .idx-count { font-size: 1.6rem; }
+  .idx { padding: 8px 10px; }
+  .idx-count { font-size: 1.4rem; }
   .day { min-height: 74px; padding: 4px; }
   .mk { font-size: 0.6rem; padding: 1px 3px; }
 }
@@ -151,8 +151,8 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     <div class="tally-head">
       <span class="tally-label">집계 기간</span>
       <div class="seg" role="group" aria-label="집계 기간">
-        <button type="button" id="w5" data-w="5">5주<small>25거래일</small></button>
-        <button type="button" id="w6" data-w="6">6주<small>30거래일</small></button>
+        <button type="button" id="w5" data-w="5">5주<small>25일</small></button>
+        <button type="button" id="w6" data-w="6">6주<small>30일</small></button>
       </div>
     </div>
     <div class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></div>

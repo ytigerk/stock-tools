@@ -118,8 +118,8 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
     <summary>조건</summary>
     <div class="cond-body">
       <div class="cond-grid">
-        <label class="field"><span>최근 3분기 EPS 증가율 (각각, 전년 동기 대비)</span>
-          <span class="row"><input id="qG" type="number" step="1" inputmode="decimal">% 이상 · 최근 분기는 직전보다 커야 함</span></label>
+        <label class="field"><span>최근 분기 EPS 증가율 (전년 동기 대비)</span>
+          <span class="row"><input id="qG" type="number" step="1" inputmode="decimal">% 이상</span></label>
         <label class="field"><span>연간 EPS 3년 연평균 증가율</span>
           <span class="row"><input id="yG" type="number" step="1" inputmode="decimal">% 이상 (복리)</span></label>
         <label class="field"><span>ROE (최근 4분기 TTM · 외국 기업은 최근 회계연도)</span>
@@ -132,18 +132,16 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
           <span class="row"><input id="vol" class="wide" type="number" step="10000" inputmode="numeric">주 이상</span></label>
       </div>
       <div class="cond-foot">
-        <span>주가 10달러 미만은 항상 제외 · EPS와 영업이익은 회계 기준(GAAP), 주식 분할 보정</span>
+        <span>계산할 수 없는 값(전년 적자, 자료 없음)은 탈락시키지 않음 · 주가 10달러 미만은 항상 제외 · EPS는 회계 기준(GAAP), 주식 분할 보정</span>
         <button class="btn" id="reset" type="button">기본값으로</button>
       </div>
     </div>
   </details>
 
   <section class="panel">
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tabPass" data-tab="pass"></button>
-      <button class="tab" role="tab" id="tabReview" data-tab="review"></button>
-      <button class="tab" role="tab" id="tabForeign" data-tab="foreign"></button>
-      <span class="hint">행을 누르면 분기 실적이 펼쳐져요</span>
+    <div class="tabs">
+      <span class="tab" aria-selected="true" id="resTitle"></span>
+      <span class="hint">행을 누르면 분기 실적이 펼쳐져요 · 열 제목을 누르면 정렬</span>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -154,13 +152,9 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
   </section>
 
   <footer>
-    <div><span class="chip turn">흑자 전환</span> 1년 전 같은 분기(또는 3년 전 연간) EPS가 적자라 증가율 계산 불가 → 통과로 간주</div>
-    <div><span class="chip one">일회성 의심</span> EPS 증가율은 기준 미달이지만 같은 기간 영업이익은 기준 이상 증가</div>
-    <div><span class="chip late">실적 지연</span> 최근 분기 실적이 190일 넘게 갱신되지 않음 (SEC 제출 대기 또는 데이터 누락)</div>
-    <div><span class="chip pend">새 실적 반영 대기</span> 야후 기준으로 더 최근 분기 실적이 발표됐지만 SEC 자료에는 아직 없음 → 발표 자료 직접 확인</div>
-    <div><span class="chip young">상장 3년 미만</span> 1년 전 분기 또는 3년 전 연간 실적이 아직 없어 비교 불가</div>
-    <div><span class="chip data">데이터 부족</span> 상장은 오래됐지만 SEC 요약 자료에 비교할 실적이 빠져 있음 (주식 종류별로만 보고하는 회사 등)</div>
-    <div>외국 기업 탭: 미국식 분기 보고서가 없어 분기 조건은 빼고, 주가·거래량·연간 EPS·ROE(최근 회계연도)만 판정</div>
+    <div>"흑전": 1년 전(또는 3년 전) EPS가 적자라 증가율 계산 불가 → 통과로 처리</div>
+    <div>"–": 비교할 자료가 없음 (상장 3년 미만, 외국 기업의 분기 실적, SEC 요약 자료 누락 등) → 통과로 처리</div>
+    <div>ROE: 최근 4분기(TTM). 분기 자료가 없는 외국 기업은 최근 회계연도 기준이고 "연간"으로 표시</div>
     <div id="src"></div>
   </footer>
 </div>
@@ -169,181 +163,115 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
 const DATA = /*__DATA__*/null;
 const DEF = { qG: 25, yG: 25, roe: 17, pNqLo: 15, pNqHi: 300, pNyLo: 20, pNyHi: 300, vol: 100000 };
 const FLOOR = 10;
-const LATE_DAYS = 190;
 let T = { ...DEF };
 try { const s = JSON.parse(localStorage.getItem("screenerCond") || "null"); if (s) T = { ...DEF, ...s }; } catch (e) {}
-let tab = "pass", sortKey = "q0", sortDir = -1, openT = null;
+let sortKey = "q0", sortDir = -1, openT = null;
 
-const daysBetween = (a, b) => (new Date(a) - new Date(b)) / 864e5;
 const pct = v => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
 const cls = v => v == null ? "dim" : v >= 0 ? "pos" : "neg";
 
-/* 한 분기 판정: ok / turn(흑자 전환) / one(일회성 의심) / young·data(비교 불가) / fail */
-function qTest(q, young) {
-  if (q.epsSt === "turnaround") return "turn";
-  if (q.epsSt === "ok" && q.epsG >= T.qG) return "ok";
-  if (q.opSt === "ok" && q.opG >= T.qG) return "one";
-  if (q.epsSt == null) return young ? "young" : "data";
-  return "fail";
+/* 기준 이상이면 통과. 계산할 수 없으면(전년 적자, 자료 없음) 통과. 현재 적자이거나 기준 미달이면 탈락 */
+function passGrowth(st, value, min) {
+  if (st === "ok") return value >= min;
+  if (st === "loss") return false;
+  return true; // turnaround(흑자 전환) 또는 비교 자료 없음
 }
 
-/* 상장 3년 미만: 야후의 첫 거래일 기준. 없으면 가장 오래된 재무 기록으로 대신 판단 */
-function isYoung(r) {
-  if (r.ipo) return daysBetween(DATA.priceDate, r.ipo) < 3 * 365 + 90;
-  const f = r.f, ref = f.quarters.length ? f.quarters.at(-1).end : f.epsY?.end;
-  return !!(f.firstEnd && ref && daysBetween(ref, f.firstEnd) < 3 * 365 + 90);
-}
-
-/* 결과: null(탈락) 또는 표시 목록 [] */
 function judge(r) {
+  const f = r.f;
+  if (!f || (!f.quarters.length && !f.epsY)) return false;  // EPS가 아예 없는 종목(신탁, 펀드 등) 제외
   const lo = Math.max(FLOOR, r.ex === "Nasdaq" ? T.pNqLo : T.pNyLo);
   const hi = r.ex === "Nasdaq" ? T.pNqHi : T.pNyHi;
-  if (r.price < lo || r.price > hi || r.vol50 < T.vol) return null;
-  const f = r.f;
-  if (!f || (!f.quarters.length && !f.epsY)) return null;  // EPS가 아예 없는 종목(신탁, 펀드 등) 제외
-  const roe = f.roe && f.roe.roe;
-  if (roe == null || roe < T.roe) return null;
-  const flags = new Set(), young = isYoung(r);
-
-  if (!f.foreign) {
-    const qs = f.quarters;
-    if (qs.length < 3) flags.add(young ? "young" : "data");
-    else {
-      const q3 = qs.slice(-3);
-      if (daysBetween(DATA.priceDate, q3[2].end) > LATE_DAYS) flags.add("late");
-      if (r.yq && daysBetween(r.yq, q3[2].end) > 45) flags.add("pend");
-      const res = q3.map(q => qTest(q, young));
-      if (res.includes("fail")) return null;
-      res.forEach(x => x !== "ok" && flags.add(x));
-      // 가속: 최근 분기 증가율 > 직전 분기 증가율 (같으면 탈락)
-      const [ra, rb] = [res[2], res[1]], a = q3[2], b = q3[1];
-      if (ra === "ok" && rb === "ok") { if (!(a.epsG > b.epsG)) return null; }
-      else if (ra === "turn" || rb === "turn") flags.add("turn");
-      else if (ra === "one" || rb === "one") flags.add("one");
-      else flags.add(ra !== "ok" ? ra : rb);
-    }
-  }
-  // 연간 3년 복리
+  if (r.price < lo || r.price > hi || r.vol50 < T.vol) return false;
+  const q = f.quarters.at(-1);
+  if (q && !passGrowth(q.epsSt, q.epsG, T.qG)) return false;
   const y = f.epsY || {};
-  if (y.st === "turnaround") flags.add("turn");
-  else if (!(y.st === "ok" && y.cagr >= T.yG)) {
-    if (y.opCagr != null && y.opCagr >= T.yG) flags.add("one");
-    else if (y.st == null) flags.add(young ? "young" : "data");
-    else return null;
-  }
-  return [...flags];
+  if (!passGrowth(y.st, y.cagr, T.yG)) return false;
+  const roe = f.roe && f.roe.roe;
+  if (roe != null && roe < T.roe) return false;
+  return true;
+}
+
+function growthCell(st, v) {
+  if (st === "turnaround") return `<span class="pos">흑전</span>`;
+  if (st === "loss") return `<span class="neg">적자</span>`;
+  if (st == null) return `<span class="dim">–</span>`;
+  return `<span class="${cls(v)}">${pct(v)}</span>`;
 }
 
 const COLS = [
   { k: "t", label: "종목", sort: r => r.t },
   { k: "ex", label: "거래소", sort: r => r.ex },
   { k: "price", label: "주가", sort: r => r.price },
-  { k: "hi", label: "52주 고가 대비", sort: r => r.price / r.hi52 - 1 },
-  { k: "q", label: "최근 3분기 EPS 증가율", sort: null },
-  { k: "q0", label: "최근 분기", sort: r => r.f.quarters.at(-1)?.epsG ?? -1e9 },
-  { k: "y", label: "연간 3년", sort: r => r.f.epsY?.cagr ?? -1e9 },
+  { k: "q0", label: "최근 분기 EPS", sort: r => r.f.quarters.at(-1)?.epsG ?? -1e9 },
+  { k: "y", label: "연간 EPS 3년", sort: r => r.f.epsY?.cagr ?? -1e9 },
   { k: "roe", label: "ROE", sort: r => r.f.roe?.roe ?? -1e9 },
   { k: "vol", label: "50일 평균 거래량", sort: r => r.vol50 },
-  { k: "flags", label: "표시", sort: null },
 ];
-const CHIP = { turn: ["turn", "흑자 전환"], one: ["one", "일회성 의심"], late: ["late", "실적 지연"],
-  pend: ["pend", "새 실적 반영 대기"], young: ["young", "상장 3년 미만"], data: ["data", "데이터 부족"] };
-
-function qCell(q) {
-  if (q.epsSt == null) return `<span class="dim">비교불가</span>`;
-  if (q.epsSt === "turnaround") return `<span class="pos">흑전</span>`;
-  if (q.epsSt === "loss") return `<span class="neg">적자</span>`;
-  return `<span class="${cls(q.epsG)}">${pct(q.epsG)}</span>`;
-}
 
 function render() {
-  const pass = [], review = [], foreign = [];
-  for (const r of DATA.rows) {
-    const fl = judge(r);
-    if (fl == null) continue;
-    (r.f.foreign ? foreign : fl.length ? review : pass).push({ r, fl });
-  }
+  const list = DATA.rows.filter(judge);
   document.getElementById("counts").innerHTML =
-    `<span>통과 <b>${pass.length}</b></span><span>검토 필요 <b>${review.length}</b></span><span>외국 기업 <b>${foreign.length}</b></span><span>전체 <b>${DATA.rows.length.toLocaleString()}</b></span>`;
-  document.getElementById("tabPass").innerHTML = `통과<b>${pass.length}</b>`;
-  document.getElementById("tabReview").innerHTML = `검토 필요<b>${review.length}</b>`;
-  document.getElementById("tabForeign").innerHTML = `외국 기업 (분기 데이터 없음)<b>${foreign.length}</b>`;
-  for (const b of document.querySelectorAll(".tab")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
-
+    `<span>결과 <b>${list.length}</b></span><span>전체 <b>${DATA.rows.length.toLocaleString()}</b></span>`;
+  document.getElementById("resTitle").innerHTML = `결과<b>${list.length}</b>`;
   document.getElementById("headRow").innerHTML = COLS.map(c => {
     const arrow = c.k === sortKey ? `<span class="arrow">${sortDir < 0 ? " ▼" : " ▲"}</span>` : "";
-    return `<th class="${c.sort ? "sortable" : ""}" data-k="${c.k}">${c.label}${arrow}</th>`;
+    return `<th class="sortable" data-k="${c.k}">${c.label}${arrow}</th>`;
   }).join("");
-
-  const list = (tab === "pass" ? pass : tab === "review" ? review : foreign).slice();
   const col = COLS.find(c => c.k === sortKey);
-  if (col && col.sort) list.sort((x, y) => {
-    const a = col.sort(x.r), b = col.sort(y.r);
-    return (a > b ? 1 : a < b ? -1 : 0) * sortDir;
-  });
+  list.sort((x, y) => { const a = col.sort(x), b = col.sort(y); return (a > b ? 1 : a < b ? -1 : 0) * sortDir; });
 
   const body = document.getElementById("body");
   if (!list.length) {
     body.innerHTML = `<tr><td colspan="${COLS.length}" class="empty">조건을 만족하는 종목이 없어요. 위의 조건을 조금 완화해 보세요.</td></tr>`;
     return;
   }
-  body.innerHTML = list.map(({ r, fl }) => {
-    const f = r.f, q3 = f.quarters.slice(-3), off = r.price / r.hi52 - 1;
-    const qCells = q3.length ? `<span class="q3">${q3.map(qCell).join("")}</span>` : `<span class="dim">–</span>`;
+  body.innerHTML = list.map(r => {
+    const f = r.f, q = f.quarters.at(-1), y = f.epsY || {};
     const row = `<tr class="stock ${openT === r.t ? "open" : ""}" tabindex="0" data-t="${r.t}">
       <td><span class="tk">${r.t}</span><span class="nm">${r.name}</span></td>
       <td>${r.ex}</td>
       <td class="num">$${r.price.toFixed(2)}</td>
-      <td class="num ${off >= -0.15 ? "" : "dim"}">${(off * 100).toFixed(1)}%</td>
-      <td class="num">${qCells}</td>
-      <td class="num">${q3.length ? qCell(q3.at(-1)) : `<span class="dim">–</span>`}</td>
-      <td class="num">${f.epsY?.st === "turnaround" ? `<span class="pos">흑전</span>` : `<span class="${cls(f.epsY?.cagr)}">${pct(f.epsY?.cagr)}</span>`}</td>
+      <td class="num">${q ? growthCell(q.epsSt, q.epsG) : `<span class="dim">–</span>`}</td>
+      <td class="num">${growthCell(y.st, y.cagr)}</td>
       <td class="num">${pct(f.roe?.roe)}${f.roe?.basis === "FY" ? ' <span class="mark">연간</span>' : ""}</td>
-      <td class="num">${Math.round(r.vol50).toLocaleString()}</td>
-      <td><span class="chips">${fl.map(x => `<span class="chip ${CHIP[x][0]}">${CHIP[x][1]}</span>`).join("")}</span></td></tr>`;
+      <td class="num">${Math.round(r.vol50).toLocaleString()}</td></tr>`;
     return openT === r.t ? row + detailRow(r) : row;
   }).join("");
 }
 
 function detailRow(r) {
   const f = r.f, y = f.epsY || {};
-  const rows = !f.quarters.length ? `<tr><td colspan="6" class="dim">분기 실적 자료 없음</td></tr>` : f.quarters.slice().reverse().map(q => `<tr>
-    <td>${q.end}${q.derived ? ' <span class="mark">(연간−9개월 계산)</span>' : ""}</td>
-    <td class="num">${q.eps.toFixed(2)}</td><td class="num dim">${q.epsPrev == null ? "–" : q.epsPrev.toFixed(2)}</td>
-    <td class="num">${qCell(q)}</td><td class="num ${cls(q.opG)}">${q.opSt === "turnaround" ? "흑전" : pct(q.opG)}</td>
-    <td class="num ${cls(q.revG)}">${pct(q.revG)}</td></tr>`).join("");
+  const rows = !f.quarters.length ? `<tr><td colspan="4" class="dim">분기 실적 자료 없음</td></tr>` :
+    f.quarters.slice().reverse().map(q => `<tr>
+      <td>${q.end}${q.derived ? ' <span class="mark">(연간−9개월 계산)</span>' : ""}</td>
+      <td class="num">${q.eps.toFixed(2)}</td><td class="num dim">${q.epsPrev == null ? "–" : q.epsPrev.toFixed(2)}</td>
+      <td class="num">${growthCell(q.epsSt, q.epsG)}</td></tr>`).join("");
   return `<tr><td class="detail" colspan="${COLS.length}"><div class="det">
     <div class="det-head"><b>${r.t}</b><span>${r.name}</span>
       <span>연간 EPS ${y.eps3y ?? "–"} → ${y.eps ?? "–"} (${y.end ?? ""} 회계연도)</span>
-      <span>연간 영업이익 3년 연평균 ${pct(y.opCagr)}</span>
-      <span>ROE ${pct(f.roe?.roe)} (${f.roe?.basis === "TTM" ? "최근 4분기" : "최근 회계연도"}, ${f.roe?.end ?? "–"})</span>
-      ${r.yq ? `<span>야후 최근 발표 분기 ${r.yq}</span>` : ""}
       <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(r.t)}" target="_blank" rel="noopener">TradingView에서 열기 ↗</a></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>분기말</th><th>EPS</th><th>1년 전</th><th>EPS 증가율</th><th>영업이익 증가율</th><th>매출 증가율</th></tr></thead>
+      <thead><tr><th>분기말</th><th>EPS</th><th>1년 전</th><th>증가율</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
   </div></td></tr>`;
 }
 
-function bindInputs() {
-  for (const k of Object.keys(DEF)) {
-    const el = document.getElementById(k);
-    el.value = T[k];
-    el.addEventListener("input", () => {
-      const v = Number(el.value);
-      if (el.value === "" || Number.isNaN(v)) return;
-      T[k] = v; save(); render();
-    });
-  }
-}
 function save() { try { localStorage.setItem("screenerCond", JSON.stringify(T)); } catch (e) {} }
-
+for (const k of Object.keys(DEF)) {
+  const el = document.getElementById(k);
+  el.value = T[k];
+  el.addEventListener("input", () => {
+    const v = Number(el.value);
+    if (el.value === "" || Number.isNaN(v)) return;
+    T[k] = v; save(); render();
+  });
+}
 document.getElementById("reset").addEventListener("click", () => {
   T = { ...DEF }; save();
   for (const k of Object.keys(DEF)) document.getElementById(k).value = T[k];
   render();
 });
-for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => { tab = b.dataset.tab; openT = null; render(); });
 document.getElementById("headRow").addEventListener("click", e => {
   const th = e.target.closest("th.sortable"); if (!th) return;
   if (sortKey === th.dataset.k) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = th.dataset.k === "t" || th.dataset.k === "ex" ? 1 : -1; }
@@ -362,5 +290,5 @@ const gen = new Date(DATA.generatedAt).toLocaleString("ko-KR", { timeZone: "Asia
 document.getElementById("meta").innerHTML = `주가 기준일 <b class="num">${DATA.priceDate}</b> · 갱신 ${gen}`;
 document.getElementById("src").textContent = "데이터: 주가 Yahoo Finance · 실적 SEC EDGAR";
 if (window.matchMedia("(min-width: 700px)").matches) document.getElementById("cond").open = true;
-bindInputs(); render();
+render();
 </script>

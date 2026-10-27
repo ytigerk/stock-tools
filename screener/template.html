@@ -267,7 +267,7 @@ function showFin(r) {
     return;
   }
   el.innerHTML = `<table>
-    <thead><tr><th>분기말</th><th>EPS</th><th>전년 동기 EPS</th><th>EPS 증가율</th><th class="grp">매출액</th><th>매출 증가율</th></tr></thead>
+    <thead><tr><th>분기말</th><th>EPS</th><th>전년 동기 EPS</th><th>EPS 증가율<br>(전년 동기 대비)</th><th class="grp">매출액</th><th>매출 증가율<br>(전년 동기 대비)</th></tr></thead>
     <tbody>${qs.map(q => `<tr>
       <td>${q.end}${q.derived ? '<span class="mark">연간−9개월</span>' : ""}</td>
       <td>${q.eps.toFixed(2)}</td>

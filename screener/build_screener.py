@@ -94,14 +94,28 @@ class YahooEarnings:
         self.refresh()
 
     def refresh(self):
+        """접속 허가표(crumb) 받기. 야후가 거절하면(429 등) 천천히 몇 번 다시 시도하고, 끝내 안 되면 None.
+        이 기능은 표시용이라 실패해도 전체 작업을 멈추지 않는다."""
         with self.lock:
             try:
                 self.opener.open("https://fc.yahoo.com", timeout=20)
             except Exception:
                 pass  # 쿠키만 받으면 되므로 오류 응답은 무시
-            self.crumb = self.opener.open("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=20).read().decode()
+            self.crumb = None
+            for attempt in range(6):
+                host = ("query2", "query1")[attempt % 2]
+                try:
+                    crumb = self.opener.open(f"https://{host}.finance.yahoo.com/v1/test/getcrumb", timeout=20).read().decode()
+                    if crumb and "<" not in crumb:
+                        self.crumb = crumb
+                        return
+                except Exception:
+                    pass
+                time.sleep(5 * (attempt + 1))
 
     def latest_quarter(self, sym):
+        if not self.crumb:
+            return None
         for attempt in range(3):
             try:
                 u = (f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}"
@@ -220,11 +234,14 @@ def main():
     # 5. 야후 실적 발표 기록 (실적이 있는 종목만)
     ye = YahooEarnings()
     targets = [r for r in rows if r["f"]]
-    with ThreadPoolExecutor(8) as ex:
-        for r, yq in zip(targets, ex.map(lambda r: ye.latest_quarter(r["ysym"]), targets)):
-            r["yq"] = yq
-    got = sum(1 for r in targets if r.get("yq"))
-    print(f"[5] 야후 실적 발표 기록 {got}/{len(targets)}개 ({time.time() - t0:.0f}초)")
+    if ye.crumb:
+        with ThreadPoolExecutor(4) as ex:
+            for r, yq in zip(targets, ex.map(lambda r: ye.latest_quarter(r["ysym"]), targets)):
+                r["yq"] = yq
+        got = sum(1 for r in targets if r.get("yq"))
+        print(f"[5] 야후 실적 발표 기록 {got}/{len(targets)}개 ({time.time() - t0:.0f}초)")
+    else:
+        print("[5] 야후가 실적 발표 기록 접속을 거절해서 '새 실적 반영 대기' 확인은 건너뜀")
 
     # 6. 저장 (주봉 차트 자료는 종목별 파일로 따로)
     OUT.mkdir(parents=True, exist_ok=True)

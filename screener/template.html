@@ -124,10 +124,8 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
           <span class="row"><input id="yG" type="number" step="1" inputmode="decimal">% 이상 (복리)</span></label>
         <label class="field"><span>ROE (최근 4분기 TTM · 외국 기업은 최근 회계연도)</span>
           <span class="row"><input id="roe" type="number" step="1" inputmode="decimal">% 이상</span></label>
-        <div class="field"><span>주가 · 나스닥 (달러)</span>
-          <span class="row"><input id="pNqLo" type="number" step="1" aria-label="나스닥 최저가"> ~ <input id="pNqHi" type="number" step="1" aria-label="나스닥 최고가"></span></div>
-        <div class="field"><span>주가 · NYSE와 기타 거래소 (달러)</span>
-          <span class="row"><input id="pNyLo" type="number" step="1" aria-label="NYSE 최저가"> ~ <input id="pNyHi" type="number" step="1" aria-label="NYSE 최고가"></span></div>
+        <div class="field"><span>주가 (달러)</span>
+          <span class="row"><input id="pLo" type="number" step="1" aria-label="최저가"> ~ <input id="pHi" type="number" step="1" aria-label="최고가"></span></div>
         <label class="field"><span>50일 평균 거래량</span>
           <span class="row"><input id="vol" class="wide" type="number" step="10000" inputmode="numeric">주 이상</span></label>
       </div>
@@ -164,10 +162,13 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
 
 <script>
 const DATA = /*__DATA__*/null;
-const DEF = { qG: 25, yG: 25, roe: 17, pNqLo: 15, pNqHi: 300, pNyLo: 20, pNyHi: 300, vol: 100000 };
+const DEF = { qG: 25, yG: 25, roe: 17, pLo: 15, pHi: 300, vol: 100000 };
 const FLOOR = 10;
 let T = { ...DEF };
-try { const s = JSON.parse(localStorage.getItem("screenerCond") || "null"); if (s) T = { ...DEF, ...s }; } catch (e) {}
+try {
+  const s = JSON.parse(localStorage.getItem("screenerCond") || "null");
+  if (s) for (const k of Object.keys(DEF)) if (typeof s[k] === "number") T[k] = s[k];
+} catch (e) {}
 let tab = "num", sortKey = "q0", sortDir = -1, openT = null;
 const TABS = { num: "통과", turn: "흑자 전환", none: "비교 자료 없음" };
 
@@ -185,9 +186,7 @@ function growthTest(st, value, min) {
 function judge(r) {
   const f = r.f;
   if (!f || (!f.quarters.length && !f.epsY)) return false;  // EPS가 아예 없는 종목(신탁, 펀드 등) 제외
-  const lo = Math.max(FLOOR, r.ex === "Nasdaq" ? T.pNqLo : T.pNyLo);
-  const hi = r.ex === "Nasdaq" ? T.pNqHi : T.pNyHi;
-  if (r.price < lo || r.price > hi || r.vol50 < T.vol) return false;
+  if (r.price < Math.max(FLOOR, T.pLo) || r.price > T.pHi || r.vol50 < T.vol) return false;
   const q = f.quarters.at(-1), y = f.epsY || {}, roe = f.roe && f.roe.roe;
   const res = [
     q ? growthTest(q.epsSt, q.epsG, T.qG) : "none",

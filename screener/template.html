@@ -9,19 +9,19 @@
 :root {
   --bg: #f4f5f7; --surface: #ffffff; --ink: #161a22; --muted: #5d6573; --line: #dde1e8;
   --soft: #eef1f6; --accent: #2c5bd6; --accent-soft: #e6edfc;
-  --good: #1f8a4c; --bad: #d2342b; --ma: #111111;
+  --good: #1f8a4c; --bad: #d2342b; --ma: #111111; --star: #d99a00; --star-soft: #fdf3d8;
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
-    --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; color-scheme: dark;
+    --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; --star: #f5c542; --star-soft: #3a3118; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
-  --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; color-scheme: dark;
+  --soft: #222833; --accent: #7aa2ff; --accent-soft: #1f2a44; --good: #5fd08f; --bad: #ff6b5f; --ma: #e8ebf0; --star: #f5c542; --star-soft: #3a3118; color-scheme: dark;
 }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
@@ -68,6 +68,26 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .stock:hover { background: var(--soft); }
 .stock[aria-selected="true"] { background: var(--accent-soft); }
 .stock .tk { font-family: var(--font-num); font-weight: 600; }
+.stock .star { color: var(--star); font-size: 0.75rem; margin-left: 4px; }
+.list li.row { position: relative; }
+.list li.row .stock { padding-right: 34px; }
+.list li.row .stock .g { margin-right: 0; }
+.x-btn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.85rem;
+  opacity: 0; transition: opacity .12s;
+}
+.list li.row:hover .x-btn, .x-btn:focus-visible { opacity: 1; }
+.x-btn:hover { background: var(--soft); color: var(--bad); }
+.stock.nodata { cursor: default; color: var(--muted); }
+.watch-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 10px 10px 6px; }
+.watch-add input {
+  font: inherit; font-family: var(--font-num); font-size: 0.85rem; padding: 6px 8px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg); color: var(--ink); text-transform: uppercase; min-width: 0;
+}
+.watch-add input::placeholder { text-transform: none; font-family: var(--font-ui); }
+.watch-msg { padding: 0 12px 6px; font-size: 0.74rem; color: var(--bad); }
+.tool-btn.watch[aria-pressed="true"] { background: var(--star-soft); border-color: var(--star); color: var(--ink); }
 .stock .nm { grid-column: 1 / -1; font-size: 0.74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stock .g { font-family: var(--font-num); font-size: 0.78rem; align-self: center; }
 .pos { color: var(--good); }
@@ -157,14 +177,21 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
       <button class="tab" role="tab" type="button" data-tab="num"></button>
       <button class="tab" role="tab" type="button" data-tab="turn"></button>
       <button class="tab" role="tab" type="button" data-tab="none"></button>
+      <button class="tab" role="tab" type="button" data-tab="watch"></button>
     </div>
+    <form class="watch-add" id="watchAdd" hidden>
+      <input id="watchInput" type="text" autocomplete="off" spellcheck="false" placeholder="티커 입력 후 Enter" aria-label="관심종목에 추가할 티커">
+      <button class="btn" type="submit">추가</button>
+    </form>
+    <div class="watch-msg" id="watchMsg" hidden></div>
     <div class="scroll"><ul class="list" id="list" role="listbox" aria-label="종목"></ul></div>
-    <div class="list-foot">최근 분기 EPS 증가율 순 · ↑↓ 키로 이동</div>
+    <div class="list-foot" id="listFoot"></div>
   </section>
 
   <main class="detail">
     <section class="pane">
       <div class="pane-head"><h3>주봉 차트</h3><span class="who" id="who1"></span><span class="legend" id="legend"></span>
+        <button class="tool-btn watch" id="watchBtn" type="button" aria-pressed="false" title="관심종목 추가/삭제 (W 키)">☆ 관심</button>
         <button class="tool-btn" id="measureBtn" type="button" aria-pressed="false" title="두 점을 찍어 상승·하락률 재기 (M 키)">% 측정</button></div>
       <div class="chart-wrap" id="chartWrap"><div id="chart"></div><svg id="measure" aria-hidden="true"></svg>
         <div class="m-hint" id="mHint" hidden></div>
@@ -181,7 +208,23 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 const DATA = /*__DATA__*/null;
 const DEF = { qG: 30, yG: 25, roe: 17, pLo: 15, pHi: 300, vol: 100000 };
 const FLOOR = 10;
-const TABS = { num: "통과", turn: "흑자 전환", none: "자료 없음" };
+const TABS = { num: "통과", turn: "흑자 전환", none: "자료 없음", watch: "★ 관심" };
+const BY = new Map(DATA.rows.map(r => [r.t, r]));
+
+/* 관심종목: 이 브라우저에 저장 (최근 추가한 종목이 앞) */
+let WATCH = [];
+try { const w = JSON.parse(localStorage.getItem("watchlist") || "[]"); if (Array.isArray(w)) WATCH = w.filter(x => typeof x === "string"); } catch (e) {}
+function saveWatch() { try { localStorage.setItem("watchlist", JSON.stringify(WATCH)); } catch (e) {} }
+const isWatched = t => WATCH.includes(t);
+function toggleWatch(t) {
+  if (!t) return;
+  WATCH = isWatched(t) ? WATCH.filter(x => x !== t) : [t, ...WATCH];
+  saveWatch(); render();
+}
+function findTicker(text) {
+  const t = text.trim().toUpperCase();
+  return [t, t.replace(/\./g, "-"), t.replace(/-/g, ".")].find(x => BY.has(x)) || null;
+}
 let T = { ...DEF };
 try {
   const s = JSON.parse(localStorage.getItem("screenerCond") || "null");
@@ -220,18 +263,40 @@ function qLabel(r) {
   return `<span class="g ${q.epsG >= 0 ? "pos" : "neg"}">${pct(q.epsG)}</span>`;
 }
 
+function stockButton(r) {
+  return `<button type="button" class="stock" role="option" data-t="${r.t}" aria-selected="${r.t === selected}">` +
+    `<span class="tk">${r.t}${isWatched(r.t) && tab !== "watch" ? '<span class="star" title="관심종목">★</span>' : ""}</span>` +
+    `${qLabel(r)}<span class="nm">${r.name}</span></button>`;
+}
+
 function render() {
   const groups = { num: [], turn: [], none: [] };
   for (const r of DATA.rows) { const g = judge(r); if (g) groups[g].push(r); }
   for (const b of document.querySelectorAll(".tab")) {
-    b.innerHTML = `${TABS[b.dataset.tab]}<b>${groups[b.dataset.tab].length}</b>`;
+    const n = b.dataset.tab === "watch" ? WATCH.length : groups[b.dataset.tab].length;
+    b.innerHTML = `${TABS[b.dataset.tab]}<b>${n}</b>`;
     b.setAttribute("aria-selected", String(b.dataset.tab === tab));
   }
-  current = groups[tab].sort((a, b) => (b.f.quarters.at(-1)?.epsG ?? -1e9) - (a.f.quarters.at(-1)?.epsG ?? -1e9));
+  const watchTab = tab === "watch";
+  document.getElementById("watchAdd").hidden = !watchTab;
+  if (!watchTab) document.getElementById("watchMsg").hidden = true;
+  document.getElementById("listFoot").textContent = watchTab ? "최근 추가한 종목이 위 · ↑↓ 키로 이동 · 마우스를 올리면 ✕로 삭제"
+    : "최근 분기 EPS 증가율 순 · ↑↓ 키로 이동";
   const list = document.getElementById("list");
-  list.innerHTML = current.length ? current.map(r => `<li><button type="button" class="stock" role="option" data-t="${r.t}"
-      aria-selected="${r.t === selected}"><span class="tk">${r.t}</span>${qLabel(r)}<span class="nm">${r.name}</span></button></li>`).join("")
-    : `<li class="empty">조건을 만족하는 종목이 없어요. 왼쪽 조건을 조금 완화해 보세요.</li>`;
+  if (watchTab) {
+    current = WATCH.map(t => BY.get(t)).filter(Boolean);  // 조건과 상관없이 담아둔 종목 전부
+    list.innerHTML = WATCH.length ? WATCH.map(t => {
+      const r = BY.get(t);
+      const item = r ? stockButton(r)
+        : `<div class="stock nodata"><span class="tk">${t}</span><span class="g dim">데이터 없음</span><span class="nm">주가 10달러 미만, 거래량 부족 등으로 오늘 자료에 없음</span></div>`;
+      return `<li class="row">${item}<button type="button" class="x-btn" data-del="${t}" aria-label="${t} 관심종목에서 삭제" title="삭제">✕</button></li>`;
+    }).join("")
+      : `<li class="empty">아직 관심종목이 없어요. 종목을 고른 뒤 차트 위 <b>☆ 관심</b> 버튼(W 키)을 누르거나, 위 칸에 티커를 입력하세요.</li>`;
+  } else {
+    current = groups[tab].sort((a, b) => (b.f.quarters.at(-1)?.epsG ?? -1e9) - (a.f.quarters.at(-1)?.epsG ?? -1e9));
+    list.innerHTML = current.length ? current.map(r => `<li>${stockButton(r)}</li>`).join("")
+      : `<li class="empty">조건을 만족하는 종목이 없어요. 왼쪽 조건을 조금 완화해 보세요.</li>`;
+  }
   if (current.length && !current.some(r => r.t === selected)) { select(current[0].t); return; }
   showSelected();
 }
@@ -283,6 +348,8 @@ function showSelected() {
   const text = r ? `${r.t} · ${r.name}` : "왼쪽 목록에서 종목을 고르세요";
   document.getElementById("who1").innerHTML = r ? `${r.t} · ${r.name} · <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(r.t)}" target="_blank" rel="noopener">TradingView ↗</a>` : text;
   document.getElementById("who2").textContent = text;
+  const wb = document.getElementById("watchBtn"), on = !!r && isWatched(r.t);
+  wb.disabled = !r; wb.setAttribute("aria-pressed", String(on)); wb.textContent = on ? "★ 관심 중" : "☆ 관심";
   showFin(r);
   if (r && shownChart !== r.t) { shownChart = r.t; loadChart(r); }
 }
@@ -409,6 +476,7 @@ document.getElementById("measureBtn").addEventListener("click", () => setMeasure
 document.addEventListener("keydown", e => {
   if (e.target.closest("input")) return;
   if (e.key === "m" || e.key === "M") setMeasure(!measure.on);
+  if (e.key === "w" || e.key === "W") toggleWatch(selected);
   if (e.key === "Escape" && measure.on) setMeasure(false);
 });
 
@@ -468,6 +536,7 @@ async function loadChart(r) {
   } catch (e) {
     if (req !== chartReq) return;
     msg.textContent = `${r.t} 차트 자료가 없어요.`; msg.hidden = false;
+    candles.setData([]); volume.setData([]); ma.setData([]);  // 이전 종목 차트가 남지 않게
     chartData = null; showLegend(null);
   }
 }
@@ -489,7 +558,26 @@ document.getElementById("reset").addEventListener("click", () => {
 });
 for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => { tab = b.dataset.tab; render(); });
 const listEl = document.getElementById("list");
-listEl.addEventListener("click", e => { const b = e.target.closest(".stock"); if (b) select(b.dataset.t); });
+listEl.addEventListener("click", e => {
+  const del = e.target.closest(".x-btn");
+  if (del) { toggleWatch(del.dataset.del); return; }
+  const b = e.target.closest("button.stock"); if (b) select(b.dataset.t);
+});
+document.getElementById("watchBtn").addEventListener("click", () => toggleWatch(selected));
+document.getElementById("watchAdd").addEventListener("submit", e => {
+  e.preventDefault();
+  const input = document.getElementById("watchInput"), msg = document.getElementById("watchMsg");
+  const raw = input.value.trim();
+  if (!raw) return;
+  const t = findTicker(raw);
+  if (!t) {
+    msg.textContent = `${raw.toUpperCase()}: 오늘 자료에 없는 종목이에요 (주가 10달러 미만, 거래량 부족, 오타 등)`;
+    msg.hidden = false; return;
+  }
+  msg.hidden = true; input.value = "";
+  if (!isWatched(t)) { WATCH = [t, ...WATCH]; saveWatch(); }
+  selected = t; render(); select(t);
+});
 listEl.addEventListener("keydown", e => {
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   e.preventDefault();

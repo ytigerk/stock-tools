@@ -10,12 +10,14 @@
 실행: SEC_USER_AGENT="이름 이메일" python screener/build_screener.py [companyfacts.zip 경로]
 """
 import datetime as dt
-import io
+import http.cookiejar
 import json
+import threading
 import os
 import sys
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -62,6 +64,7 @@ def yahoo_daily(sym):
     r = http_json(f"https://query2.finance.yahoo.com/v8/finance/chart/{q}?range=1y&interval=1d", YAHOO_UA)["chart"]["result"][0]
     off = r["meta"].get("gmtoffset", 0)
     long_name = r["meta"].get("longName") or r["meta"].get("shortName")
+    first_trade = r["meta"].get("firstTradeDate")  # 상장(첫 거래)일, 상장 3년 미만 판단용
     qt = r["indicators"]["quote"][0]
     bars = []
     for i, ts in enumerate(r.get("timestamp") or []):
@@ -70,7 +73,48 @@ def yahoo_daily(sym):
         day = dt.datetime.fromtimestamp(ts + off, dt.UTC).date().isoformat()
         bars.append([day, round(qt["open"][i], 4), round(qt["high"][i], 4), round(qt["low"][i], 4),
                      round(qt["close"][i], 4), qt["volume"][i] or 0])
-    return bars, long_name
+    ipo = dt.datetime.fromtimestamp(first_trade, dt.UTC).date().isoformat() if first_trade else None
+    return bars, long_name, ipo
+
+
+class YahooEarnings:
+    """야후 실적 발표 기록에서 '가장 최근에 발표된 분기'를 알아낸다 (새 실적 반영 대기 표시용).
+    야후의 숫자는 계산에 쓰지 않고 날짜만 쓴다."""
+
+    def __init__(self):
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.opener.addheaders = list(YAHOO_UA.items())
+        self.lock = threading.Lock()
+        self.crumb = None
+        self.refresh()
+
+    def refresh(self):
+        with self.lock:
+            try:
+                self.opener.open("https://fc.yahoo.com", timeout=20)
+            except Exception:
+                pass  # 쿠키만 받으면 되므로 오류 응답은 무시
+            self.crumb = self.opener.open("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=20).read().decode()
+
+    def latest_quarter(self, sym):
+        for attempt in range(3):
+            try:
+                u = (f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}"
+                     f"?modules=earningsHistory&crumb={urllib.parse.quote(self.crumb)}")
+                with self.opener.open(u, timeout=20) as r:
+                    res = json.load(r)["quoteSummary"]["result"][0]
+                hist = res.get("earningsHistory", {}).get("history", [])
+                ends = [h["quarter"]["fmt"] for h in hist if h.get("quarter", {}).get("fmt") and h.get("epsActual", {}).get("raw") is not None]
+                return max(ends) if ends else None
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    self.refresh()
+                elif e.code == 404:
+                    return None
+                time.sleep(2 * (attempt + 1))
+            except Exception:
+                time.sleep(2 * (attempt + 1))
+        return None
 
 
 def yahoo_splits(sym):
@@ -105,7 +149,7 @@ def main():
         if res is None:
             failed += 1
             continue
-        bars, long_name = res
+        bars, long_name, ipo = res
         if len(bars) < 50:
             continue
         if not is_common(u["ticker"], u["exchange"], long_name):
@@ -117,7 +161,7 @@ def main():
             continue
         rows.append({"t": u["ticker"], "ysym": u["ysym"], "name": u["name"], "ex": u["exchange"], "cik": u["cik"],
                      "price": round(last[4], 2), "vol50": round(vol50), "date": last[0],
-                     "hi52": round(max(b[2] for b in bars), 2), "bars": bars[-CHART_DAYS:]})
+                     "hi52": round(max(b[2] for b in bars), 2), "ipo": ipo, "bars": bars[-CHART_DAYS:]})
     print(f"[2] 주가 수신 실패 {failed}개, 보통주 아님 {skipped}개, 바닥 조건 통과 {len(rows)}개 ({time.time() - t0:.0f}초)")
 
     # 3. 분할 기록
@@ -154,7 +198,16 @@ def main():
                 nofund += 1
     print(f"[4] 실적 정리 완료, 실적 없음 {nofund}개 ({time.time() - t0:.0f}초)")
 
-    # 5. 저장 (차트 일봉은 종목별 파일로 따로)
+    # 5. 야후 실적 발표 기록 (실적이 있는 종목만)
+    ye = YahooEarnings()
+    targets = [r for r in rows if r["f"]]
+    with ThreadPoolExecutor(8) as ex:
+        for r, yq in zip(targets, ex.map(lambda r: ye.latest_quarter(r["ysym"]), targets)):
+            r["yq"] = yq
+    got = sum(1 for r in targets if r.get("yq"))
+    print(f"[5] 야후 실적 발표 기록 {got}/{len(targets)}개 ({time.time() - t0:.0f}초)")
+
+    # 6. 저장 (차트 일봉은 종목별 파일로 따로)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "charts").mkdir(exist_ok=True)
     for r in rows:
@@ -163,7 +216,7 @@ def main():
     data = {"generatedAt": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
             "priceDate": max(r["date"] for r in rows), "rows": rows}
     (OUT / "data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"[5] 저장: {len(rows)}개 종목, data.json {(OUT / 'data.json').stat().st_size / 1e6:.1f}MB ({time.time() - t0:.0f}초)")
+    print(f"[6] 저장: {len(rows)}개 종목, data.json {(OUT / 'data.json').stat().st_size / 1e6:.1f}MB ({time.time() - t0:.0f}초)")
 
 
 if __name__ == "__main__":

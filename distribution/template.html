@@ -41,8 +41,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); li
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; }
-.head-text { display: grid; gap: 4px; min-width: 0; }
+header { display: grid; gap: 4px; }
+.tally { display: grid; gap: 8px; }
+.tally-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.tally-label { font-size: 0.85rem; font-weight: 600; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; background: var(--surface); gap: 2px; }
 .seg button {
   font: inherit; font-size: 0.85rem; border: 0; background: transparent; color: var(--muted);
@@ -74,7 +76,7 @@ h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; te
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
 .pill.warn { background: var(--warn-soft); color: var(--warn); }
 .pill.bad { background: var(--dist-soft); color: var(--dist); }
-.summary-note { font-size: 0.78rem; color: var(--muted); margin-top: -10px; }
+.summary-note { font-size: 0.78rem; color: var(--muted); }
 
 /* 캘린더 */
 .cal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
@@ -140,19 +142,22 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 
 <div class="wrap">
   <header>
-    <div class="head-text">
-      <h1>매물 출회일 체커</h1>
-      <div class="meta" id="meta"></div>
-      <div class="rule" id="rule"></div>
-    </div>
-    <div class="seg" role="group" aria-label="집계 기간">
-      <button type="button" id="w5" data-w="5">5주<small>25거래일</small></button>
-      <button type="button" id="w6" data-w="6">6주<small>30거래일</small></button>
-    </div>
+    <h1>매물 출회일 체커</h1>
+    <div class="meta" id="meta"></div>
+    <div class="rule" id="rule"></div>
   </header>
 
-  <section class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></section>
-  <div class="summary-note" id="summaryNote"></div>
+  <section class="tally">
+    <div class="tally-head">
+      <span class="tally-label">집계 기간</span>
+      <div class="seg" role="group" aria-label="집계 기간">
+        <button type="button" id="w5" data-w="5">5주<small>25거래일</small></button>
+        <button type="button" id="w6" data-w="6">6주<small>30거래일</small></button>
+      </div>
+    </div>
+    <div class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></div>
+    <div class="summary-note" id="summaryNote"></div>
+  </section>
 
   <section class="cal" aria-label="매물 출회일 캘린더">
     <div class="cal-head">

@@ -3,6 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 /* Layout: 한 열짜리 도구 화면. 요약(지수별 개수) → 월~금 캘린더 → 선택한 날의 상세 */
 :root {
@@ -36,15 +37,27 @@
 }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
-.shell { min-height: 100%; display: grid; grid-template-columns: 160px minmax(0, 1fr); }
-.shell > .sidenav { position: sticky; top: 0; height: 100vh; }
-.main { min-width: 0; }
-@media (max-width: 700px) { .shell { grid-template-columns: 1fr; } .shell > .sidenav { position: static; height: auto; } }
-.wrap {
-  max-width: 760px; margin: 0 auto; display: grid; gap: 14px;
-  padding-block: 18px 32px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
+/* PC 작업 화면: 메뉴 | 왼쪽(요약, 캘린더, 상세) | 오른쪽 지수 일봉 차트 3개 */
+.shell { height: 100%; display: grid; grid-template-columns: 160px 470px minmax(0, 1fr); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+.shell > * { min-height: 0; }
+.main { min-width: 0; overflow-y: auto; border-right: 1px solid var(--line); }
+.wrap { display: grid; gap: 14px; padding: 18px 16px 28px; }
+.charts { display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); min-width: 0; background: var(--surface); }
+.ch { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line); }
+.ch:last-child { border-bottom: 0; }
+.ch-head { display: flex; align-items: baseline; gap: 10px; padding: 8px 16px; flex-wrap: wrap; }
+.ch-head h3 { margin: 0; font-size: 0.9rem; white-space: nowrap; }
+.ch-head .cnt { font-size: 0.75rem; color: var(--muted); }
+.ch-legend { margin-left: auto; font-family: var(--font-num); font-size: 0.74rem; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.ch-legend .d { color: var(--dist); font-weight: 700; }
+.ch-body { flex: 1; min-height: 0; position: relative; }
+.ch-body > div { position: absolute; inset: 0; }
+.ch-msg { display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 1000px) {
+  html, body { height: auto; }
+  .shell { grid-template-columns: 1fr; height: auto; }
+  .shell > .sidenav { height: auto; }
+  .charts { grid-template-rows: repeat(3, 300px); }
 }
 header { display: grid; gap: 4px; }
 .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
@@ -198,10 +211,12 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   <footer id="foot"></footer>
 </div>
 </div>
+<section class="charts" id="charts" aria-label="지수 일봉 차트"></section>
 </div>
 
 <script>
 const DATA = /*__DATA__*/null;
+const CHART_NOTE = "▼ 매물 출회일 · 옅은 파란 구간 = 최근 집계 기간";
 const SHORT = { nasdaq: "NASDAQ", sp500: "S&amp;P 500", nyse: "NYSE" };
 const DOW = ["월", "화", "수", "목", "금"];
 
@@ -293,7 +308,7 @@ function renderCalendar() {
   const grid = document.getElementById("grid");
   grid.innerHTML = cells.join("");
   grid.querySelectorAll("button.day").forEach(b => b.addEventListener("click", () => {
-    selected = b.dataset.d; renderCalendar(); renderDetail();
+    selected = b.dataset.d; renderCalendar(); renderDetail(); focusCharts(selected);
   }));
 }
 
@@ -319,7 +334,137 @@ document.getElementById("next").addEventListener("click", () => { if (mi < month
 for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
   weeks = Number(b.dataset.w);
   try { localStorage.setItem("weeks", String(weeks)); } catch (e) {}
-  renderSummary(); renderCalendar();
+  renderSummary(); renderCalendar(); paintWindow();
 });
-renderHeader(); renderSummary(); renderCalendar(); renderDetail();
+
+/* ---------- 오른쪽: 지수 일봉 차트 3개 (TradingView Lightweight Charts) ---------- */
+const CH = {};          // 지수 키 → { chart, candle, vol, win, rows, byDate }
+let syncing = false;
+function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function theme() {
+  return {
+    layout: { background: { type: "solid", color: css("--surface") }, textColor: css("--muted"),
+              fontFamily: css("--font-num"), attributionLogo: true },
+    grid: { vertLines: { color: css("--window") }, horzLines: { color: css("--window") } },
+    rightPriceScale: { borderColor: css("--line"), minimumWidth: 84 },  // 세 차트의 날짜 위치가 위아래로 맞도록 가격 눈금 폭 고정
+    timeScale: { borderColor: css("--line"), rightOffset: 2 },
+  };
+}
+
+function buildCharts() {
+  const box = document.getElementById("charts");
+  if (!window.LightweightCharts) { box.innerHTML = `<div class="ch-msg">차트 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>`; return; }
+  box.innerHTML = DATA.indices.map(ix => `<div class="ch"><div class="ch-head"><h3>${ix.name}</h3>
+    <span class="cnt" id="cnt-${ix.key}"></span><span class="ch-legend" id="lg-${ix.key}"></span></div>
+    <div class="ch-body"><div id="c-${ix.key}"></div></div></div>`).join("");
+  for (const ix of DATA.indices) {
+    const el = document.getElementById("c-" + ix.key);
+    const chart = LightweightCharts.createChart(el, { autoSize: true, ...theme(),
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal } });
+    // 집계 기간 칠하기: 꼭대기(1)부터 바닥까지 채우는 영역을 맨 먼저 깔아서 캔들 뒤에 오게
+    const win = chart.addAreaSeries({ priceScaleId: "win", lineVisible: false, lineWidth: 1, lineColor: "rgba(0,0,0,0)",
+      topColor: css("--window"), bottomColor: css("--window"), priceLineVisible: false, lastValueVisible: false,
+      crosshairMarkerVisible: false, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
+    chart.priceScale("win").applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false });
+    const candle = chart.addCandlestickSeries({ upColor: css("--ok"), downColor: css("--dist"), borderVisible: false,
+      wickUpColor: css("--ok"), wickDownColor: css("--dist") });
+    candle.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.25 } });
+    const vol = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
+    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    const byDate = Object.fromEntries(ix.rows.map(r => [r.date, r]));
+    CH[ix.key] = { chart, candle, vol, win, rows: ix.rows, byDate, name: ix.name };
+    setChartData(ix.key);
+    chart.subscribeCrosshairMove(p => onHover(ix.key, p));
+    chart.subscribeClick(p => { if (p && p.time) pickDate(p.time); });
+    chart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(ix.key, r));
+  }
+  paintWindow();
+  for (const k in CH) CH[k].chart.timeScale().fitContent();
+  for (const k in CH) legend(k, selected);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    for (const k in CH) {
+      CH[k].chart.applyOptions(theme());
+      CH[k].candle.applyOptions({ upColor: css("--ok"), downColor: css("--dist"), wickUpColor: css("--ok"), wickDownColor: css("--dist") });
+      CH[k].win.applyOptions({ topColor: css("--window"), bottomColor: css("--window") });
+      setChartData(k);
+    }
+    paintWindow();
+  });
+}
+
+function setChartData(k) {
+  const c = CH[k], up = css("--ok"), down = css("--dist");
+  c.candle.setData(c.rows.map(r => ({ time: r.date, open: r.open, high: r.high, low: r.low, close: r.close })));
+  c.vol.setData(c.rows.map(r => ({ time: r.date, value: r.vol, color: (r.close >= r.open ? up : down) + "66" })));
+  c.candle.setMarkers(c.rows.filter(r => r.dist).map(r => ({ time: r.date, position: "aboveBar", color: down, shape: "arrowDown", size: 1 })));
+}
+
+function paintWindow() {
+  for (const k in CH) {
+    const c = CH[k];
+    c.win.setData(c.rows.filter(r => r.date >= winStart).map(r => ({ time: r.date, value: 1 })));
+    const n = c.rows.filter(r => r.date >= winStart && r.dist).length;
+    document.getElementById("cnt-" + k).textContent = `최근 ${weeks * 5}거래일 매물 출회일 ${n}개` + (k === DATA.indices[0].key ? ` · ${CHART_NOTE}` : "");
+  }
+}
+
+/* 세 차트의 가로축(기간)을 함께 움직이기 */
+function syncRange(from, range) {
+  if (syncing || !range) return;
+  syncing = true;
+  for (const k in CH) if (k !== from) CH[k].chart.timeScale().setVisibleRange(range);
+  syncing = false;
+}
+
+/* 한 차트에 마우스를 올리면 나머지 차트에도 같은 날짜 십자선 */
+function onHover(from, p) {
+  if (syncing) return;
+  syncing = true;
+  const t = p && p.time;
+  for (const k in CH) {
+    if (k !== from) {
+      const r = t && CH[k].byDate[t];
+      if (r) CH[k].chart.setCrosshairPosition(r.close, t, CH[k].candle); else CH[k].chart.clearCrosshairPosition();
+    }
+    legend(k, t || selected);
+  }
+  syncing = false;
+}
+
+function legend(k, date) {
+  const r = CH[k].byDate[date];
+  const el = document.getElementById("lg-" + k);
+  if (!r) { el.innerHTML = ""; return; }
+  el.innerHTML = `<span>${r.date}</span><span>종가 ${r.close.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>` +
+    `<span class="${r.chg < 0 ? "dn" : "up"}">${fmtPct(r.chg)}</span><span>거래량 ${fmtPct(r.volChg)}</span>` +
+    (r.dist ? `<span class="d">▼ 매물 출회일</span>` : "");
+}
+
+/* 차트에서 날짜를 누르면 캘린더와 상세가 그 날짜로 */
+function pickDate(t) {
+  if (!byDate[t]) return;
+  selected = t;
+  const idx = months.indexOf(t.slice(0, 7));
+  if (idx >= 0) mi = idx;
+  renderCalendar(); renderDetail();
+  for (const k in CH) legend(k, t);
+}
+
+/* 캘린더에서 날짜를 누르면 세 차트가 그 날짜를 가리키고, 화면 밖이면 그쪽으로 이동 */
+function focusCharts(t) {
+  for (const k in CH) {
+    const c = CH[k], r = c.byDate[t];
+    legend(k, t);
+    if (!r) continue;
+    const vr = c.chart.timeScale().getVisibleRange();
+    if (vr && (t < vr.from || t > vr.to)) {
+      const i = c.rows.findIndex(x => x.date === t), half = Math.max(10, Math.round((c.rows.findIndex(x => x.date >= vr.to) - c.rows.findIndex(x => x.date >= vr.from)) / 2));
+      const a = c.rows[Math.max(0, i - half)], b = c.rows[Math.min(c.rows.length - 1, i + half)];
+      syncing = true; c.chart.timeScale().setVisibleRange({ from: a.date, to: b.date }); syncing = false;
+    }
+    c.chart.setCrosshairPosition(r.close, t, c.candle);
+  }
+}
+
+renderHeader(); renderSummary(); renderCalendar(); renderDetail(); buildCharts();
 </script>

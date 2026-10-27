@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from site_common import nav, wrap_page  # noqa: E402
+from site_common import nav, unfinished_day, wrap_page  # noqa: E402
 
 HERE = Path(__file__).parent
 SITE = HERE.parent / "site" / "distribution"   # 완성된 웹페이지가 저장될 폴더
@@ -29,7 +29,9 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 DIST_THRESHOLD = -0.2      # 변동률(%) 이 값 이하이면 하락으로 판단
 WINDOW = 25                # 최근 몇 거래일 안의 매물 출회일을 셀지
-SHOW_MONTHS = 3            # 화면에 보여줄 기간(개월). 6주(30거래일) 구간이 잘리지 않도록 3개월
+SHOW_MONTHS = 6            # 화면(캘린더, 차트)에 보여줄 기간(개월)
+HISTORY = HERE / "history.csv"   # 매일 계산 결과를 쌓아두는 기록 (자동 작업이 저장소에 저장)
+FREEZE_DAYS = 5            # 기록에 있는 날 중 최근 이 거래일 수보다 오래된 날은 다시 계산하지 않고 기록값을 쓴다
 CONSTITUENTS_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
 
 INDICES = [
@@ -55,7 +57,7 @@ def fetch_chart(symbol, rng="6mo"):
                 # 야후 일봉 타임스탬프는 미국 장 시작 시각 기준 -> 날짜만 사용
                 day = dt.datetime.fromtimestamp(ts + res["meta"].get("gmtoffset", 0), dt.UTC).date().isoformat()
                 c, v = q["close"][i], q["volume"][i]
-                if c is None:
+                if c is None or day == unfinished_day():  # 장중의 미완성 봉은 버림
                     continue
                 out[day] = {"o": q["open"][i], "h": q["high"][i], "l": q["low"][i], "c": c, "v": v}
             return out
@@ -114,6 +116,9 @@ def compute(bars):
         vchg = (c["v"] / p["v"] - 1) * 100
         rows.append({
             "date": cur,
+            "open": round(c["o"], 2) if c["o"] else round(c["c"], 2),
+            "high": round(c["h"], 2) if c["h"] else round(c["c"], 2),
+            "low": round(c["l"], 2) if c["l"] else round(c["c"], 2),
             "close": round(c["c"], 2),
             "chg": round(chg, 2),
             "vol": c["v"],
@@ -124,19 +129,51 @@ def compute(bars):
     return rows
 
 
+def load_history():
+    """기록 파일 읽기 → {(지수, 날짜): 줄}"""
+    if not HISTORY.exists():
+        return {}
+    with HISTORY.open(encoding="utf-8") as f:
+        return {(r["index"], r["date"]): r for r in csv.DictReader(f)}
+
+
+def save_history(hist):
+    cols = ["date", "index", "open", "high", "low", "close", "volume", "chg", "volChg", "dist"]
+    with HISTORY.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for key in sorted(hist, key=lambda k: (k[1], k[0])):
+            w.writerow({c: hist[key].get(c, "") for c in cols})
+
+
 def main():
-    rng = "6mo"  # 2개월 표시 + 앞쪽 여유분
+    rng = "1y"  # 6개월 표시 + 앞쪽 여유분
     out = {"generatedAt": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
            "rule": {"threshold": DIST_THRESHOLD, "window": WINDOW}, "indices": []}
 
+    hist = load_history()
     sp_vol, sp_missing, sp_total, sp_failed = sp500_summed_volume(rng)
 
     for key, sym, name, vol_basis in INDICES:
         bars = fetch_chart(sym, rng)
         if key == "sp500":
-            # 가격은 지수, 거래량은 구성종목 합산으로 교체
+            # 가격은 지수, 거래량은 구성종목 합산으로 교체.
+            # 구성종목은 계속 바뀌므로, 기록에 이미 저장된 오래된 날은 그날 계산해 둔 합산값을 그대로 쓴다
+            days = sorted(d for d in bars if sp_vol.get(d))
+            frozen = set(days[:-FREEZE_DAYS])
+            for d in frozen:
+                h = hist.get(("sp500", d))
+                if h and h.get("volume"):
+                    sp_vol[d] = int(h["volume"])
             bars = {d: {**b, "v": sp_vol.get(d)} for d, b in bars.items() if sp_vol.get(d)}
         rows = compute(bars)
+        # 기록에 추가: 새로운 날은 추가, 최근 FREEZE_DAYS 거래일은 덮어쓰기 (자료가 나중에 고쳐질 수 있어서)
+        recent = {r["date"] for r in rows[-FREEZE_DAYS:]}
+        for r in rows:
+            if (key, r["date"]) not in hist or r["date"] in recent:
+                hist[(key, r["date"])] = {"date": r["date"], "index": key, "open": r["open"], "high": r["high"],
+                                          "low": r["low"], "close": r["close"], "volume": r["vol"], "chg": r["chg"],
+                                          "volChg": r["volChg"], "dist": int(r["dist"])}
         out["indices"].append({"key": key, "name": name, "symbol": sym,
                                "volBasis": vol_basis, "rows": rows})
 
@@ -154,6 +191,7 @@ def main():
     out["sp500Check"] = {"constituents": sp_total, "failed": sp_failed,
                          "missingOnLastDay": sp_missing.get(last_day)}
 
+    save_history(hist)
     SITE.mkdir(parents=True, exist_ok=True)
     (SITE / "data.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     body = (HERE / "template.html").read_text(encoding="utf-8")

@@ -1,6 +1,20 @@
 """
-여러 페이지가 함께 쓰는 부분: 완전한 웹페이지로 감싸기, 왼쪽 메뉴
+여러 페이지가 함께 쓰는 부분: 완전한 웹페이지로 감싸기, 왼쪽 메뉴, 미국 장 마감 확인
 """
+import datetime as dt
+from zoneinfo import ZoneInfo
+
+NY = ZoneInfo("America/New_York")
+
+
+def unfinished_day():
+    """미국 장이 아직 끝나지 않았으면 오늘(뉴욕) 날짜 문자열, 끝났으면 None.
+    장중에 받은 오늘 봉은 종가·거래량이 확정되지 않았으므로 계산에서 뺀다."""
+    now = dt.datetime.now(NY)
+    if now.weekday() < 5 and now.time() < dt.time(16, 30):
+        return now.date().isoformat()
+    return None
+
 
 MENU = [
     ("distribution", "매물 출회일 체커"),

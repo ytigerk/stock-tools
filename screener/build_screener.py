@@ -25,6 +25,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from fundamentals import summarize  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from site_common import unfinished_day  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
 OUT = ROOT / "site" / "screener"
@@ -76,6 +78,8 @@ def yahoo_daily(sym):
         if qt["close"][i] is None or qt["open"][i] is None:
             continue
         day = dt.datetime.fromtimestamp(ts + off, dt.UTC).date().isoformat()
+        if day == unfinished_day():  # 장중의 미완성 봉은 버림
+            continue
         bars.append([day, round(qt["open"][i], 4), round(qt["high"][i], 4), round(qt["low"][i], 4),
                      round(qt["close"][i], 4), qt["volume"][i] or 0])
     ipo = dt.datetime.fromtimestamp(first_trade, dt.UTC).date().isoformat() if first_trade else None

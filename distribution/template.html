@@ -1,0 +1,276 @@
+<title>분산일 체커</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: 한 열짜리 도구 화면. 요약(지수별 개수) → 월~금 캘린더 → 선택한 날의 상세 */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #161a22;
+  --muted: #5d6573;
+  --line: #dde1e8;
+  --window: #e9eef8;
+  --accent: #2c5bd6;
+  --dist: #d2342b;
+  --dist-soft: #fbe6e4;
+  --ok: #1f8a4c;
+  --warn: #b26a00;
+  --warn-soft: #fbf0dc;
+  --ok-soft: #e2f3e9;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
+    --window: #1f2838; --accent: #7aa2ff; --dist: #ff6b5f; --dist-soft: #3a1f1e;
+    --ok: #5fd08f; --warn: #f0b350; --warn-soft: #3a2e17; --ok-soft: #173024; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1e26; --ink: #e8ebf0; --muted: #9aa3b2; --line: #2b313c;
+  --window: #1f2838; --accent: #7aa2ff; --dist: #ff6b5f; --dist-soft: #3a1f1e;
+  --ok: #5fd08f; --warn: #f0b350; --warn-soft: #3a2e17; --ok-soft: #173024; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
+.wrap {
+  max-width: 760px; margin: 0 auto; display: grid; gap: 20px;
+  padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { display: grid; gap: 4px; }
+h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.meta { color: var(--muted); font-size: 0.85rem; }
+.rule {
+  font-size: 0.85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px;
+}
+.rule b { color: var(--ink); font-weight: 600; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* 요약 */
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.idx {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; display: grid; gap: 4px; min-width: 0;
+}
+.idx-name { font-size: 0.8rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.idx-count { font-family: var(--font-num); font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.idx-count small { font-size: 0.85rem; color: var(--muted); font-weight: 400; margin-left: 2px; }
+.pill {
+  justify-self: start; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+}
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--dist-soft); color: var(--dist); }
+.summary-note { font-size: 0.78rem; color: var(--muted); margin-top: -10px; }
+
+/* 캘린더 */
+.cal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-title { font-weight: 700; font-size: 1.05rem; }
+.nav { display: flex; gap: 6px; }
+.nav button {
+  font: inherit; font-size: 0.9rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px 12px; cursor: pointer;
+}
+.nav button:disabled { opacity: 0.35; cursor: default; }
+.nav button:focus-visible, .day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.78rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.win { background: var(--window); border: 1px solid var(--line); }
+.sw.d { background: var(--dist); }
+.grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.dow { font-size: 0.75rem; color: var(--muted); text-align: center; font-weight: 600; }
+.day {
+  font: inherit; min-height: 84px; text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 8px; padding: 6px; display: grid; align-content: space-between; gap: 4px;
+  cursor: pointer; min-width: 0;
+}
+.day.inwin { background: var(--window); }
+.day.empty { visibility: hidden; }
+.day.closed, .day.future { cursor: default; color: var(--muted); background: transparent; border-style: dashed; }
+.day.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.dnum { font-family: var(--font-num); font-size: 0.85rem; font-weight: 500; }
+.tag { font-size: 0.68rem; color: var(--muted); }
+.marks { display: grid; gap: 2px; }
+.mk {
+  font-size: 0.66rem; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 2px 4px; border-radius: 4px; color: var(--muted); opacity: 0.6;
+}
+.mk.on { background: var(--dist); color: #fff; font-weight: 700; opacity: 1; }
+
+/* 상세 */
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.detail h2 { margin: 0; font-size: 1rem; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th:last-child, td:last-child { text-align: center; }
+th { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.dn { color: var(--dist); }
+.up { color: var(--ok); }
+.verdict { font-family: var(--font-num); font-weight: 700; font-size: 0.95rem; }
+.verdict.yes { color: var(--dist); }
+.verdict.no { color: var(--muted); font-weight: 400; }
+footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
+@media (max-width: 520px) {
+  .summary { gap: 8px; }
+  .idx { padding: 10px; }
+  .idx-count { font-size: 1.6rem; }
+  .day { min-height: 74px; padding: 4px; }
+  .mk { font-size: 0.6rem; padding: 1px 3px; }
+}
+@media (prefers-reduced-motion: no-preference) { .day { transition: border-color .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>분산일 체커</h1>
+    <div class="meta" id="meta"></div>
+    <div class="rule" id="rule"></div>
+  </header>
+
+  <section class="summary" id="summary" aria-label="지수별 최근 분산일 개수"></section>
+  <div class="summary-note" id="summaryNote"></div>
+
+  <section class="cal" aria-label="분산일 캘린더">
+    <div class="cal-head">
+      <div class="cal-title" id="calTitle"></div>
+      <div class="nav">
+        <button id="prev" type="button" aria-label="이전 달">◀</button>
+        <button id="next" type="button" aria-label="다음 달">▶</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw d"></i>빨간 칸 = 분산일</span>
+      <span><i class="sw win"></i>최근 25거래일</span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="detail" aria-live="polite">
+    <h2 id="detailTitle"></h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>지수</th><th>종가</th><th>변동폭</th><th>거래량</th><th>전일 대비</th><th>분산일 여부</th></tr></thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const SHORT = { nasdaq: "NASDAQ", sp500: "S&amp;P 500", nyse: "NYSE" };
+const DOW = ["월", "화", "수", "목", "금"];
+
+const byDate = {};
+for (const ix of DATA.indices) for (const r of ix.rows) (byDate[r.date] ||= {})[ix.key] = r;
+const tradingDays = Object.keys(byDate).sort();
+const winStart = DATA.indices[0].windowStart;
+const months = [...new Set(tradingDays.map(d => d.slice(0, 7)))];
+let mi = months.length - 1;
+let selected = DATA.lastDate;
+
+const fmtPct = v => (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+const fmtVol = v => (v / 1e8).toFixed(1) + "억";
+const iso = d => d.toISOString().slice(0, 10);
+
+function level(n) {
+  if (n >= 5) return ["bad", "경계"];
+  if (n >= 3) return ["warn", "주의"];
+  return ["ok", "양호"];
+}
+
+function renderHeader() {
+  const gen = new Date(DATA.generatedAt);
+  const kst = gen.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" });
+  document.getElementById("meta").innerHTML =
+    `기준일 <b class="num">${DATA.lastDate}</b> (미국 장 마감) · 갱신 ${kst}`;
+  document.getElementById("rule").innerHTML =
+    `<span>판단 기준: 전일 종가 대비 <b>${DATA.rule.threshold}% 이하</b> 하락 + <b>거래량 증가</b></span>` +
+    `<span>개수: 최근 <b>${DATA.rule.window}거래일</b> 안</span>`;
+  document.getElementById("summary").innerHTML = DATA.indices.map(ix => {
+    const [cls, label] = level(ix.count);
+    return `<div class="idx"><div class="idx-name">${ix.name}</div>
+      <div class="idx-count">${ix.count}<small>개</small></div>
+      <span class="pill ${cls}">${label}</span></div>`;
+  }).join("");
+  document.getElementById("summaryNote").textContent =
+    `${winStart} ~ ${DATA.lastDate} 기준. 색 표시는 참고용(0~2 양호, 3~4 주의, 5 이상 경계).`;
+  const sc = DATA.sp500Check;
+  document.getElementById("foot").innerHTML = DATA.indices
+    .map(ix => `<div>${ix.name} 거래량: ${ix.volBasis}</div>`).join("") +
+    `<div>S&amp;P 500 구성종목 ${sc.constituents}개 중 수집 실패 ${sc.failed.length}개</div>` +
+    `<div>데이터: Yahoo Finance</div>`;
+}
+
+function renderCalendar() {
+  const ym = months[mi];
+  const [y, m] = ym.split("-").map(Number);
+  document.getElementById("calTitle").textContent = `${y}년 ${m}월`;
+  document.getElementById("prev").disabled = mi === 0;
+  document.getElementById("next").disabled = mi === months.length - 1;
+
+  const cells = DOW.map(d => `<div class="dow">${d}</div>`);
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const lead = (first.getUTCDay() + 6) % 7; // 월=0
+  if (lead < 5) for (let i = 0; i < lead; i++) cells.push(`<div class="day empty"></div>`);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  for (let d = 1; d <= last; d++) {
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const wd = dt.getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    const key = iso(dt);
+    const rec = byDate[key];
+    if (!rec) {
+      const future = key > DATA.lastDate;
+      cells.push(`<div class="day ${future ? "future" : "closed"}"><span class="dnum">${d}</span>
+        <span class="tag">${future ? "" : "휴장"}</span></div>`);
+      continue;
+    }
+    const marks = DATA.indices.map(ix => {
+      const r = rec[ix.key];
+      return `<span class="mk ${r && r.dist ? "on" : ""}" title="${ix.name}">${SHORT[ix.key]}</span>`;
+    }).join("");
+    const inwin = key >= winStart ? "inwin" : "";
+    const sel = key === selected ? "sel" : "";
+    cells.push(`<button type="button" class="day ${inwin} ${sel}" data-d="${key}" aria-label="${key}">
+      <span class="dnum">${d}</span><span class="marks">${marks}</span></button>`);
+  }
+  const grid = document.getElementById("grid");
+  grid.innerHTML = cells.join("");
+  grid.querySelectorAll("button.day").forEach(b => b.addEventListener("click", () => {
+    selected = b.dataset.d; renderCalendar(); renderDetail();
+  }));
+}
+
+function renderDetail() {
+  const rec = byDate[selected] || {};
+  const d = new Date(selected + "T00:00:00Z");
+  document.getElementById("detailTitle").textContent =
+    `${selected} (${DOW[(d.getUTCDay() + 6) % 7]}) 상세`;
+  document.getElementById("detailBody").innerHTML = DATA.indices.map(ix => {
+    const r = rec[ix.key];
+    if (!r) return `<tr><td>${ix.name}</td><td colspan="5">데이터 없음</td></tr>`;
+    return `<tr><td>${ix.name}</td>
+      <td class="num">${r.close.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+      <td class="num ${r.chg < 0 ? "dn" : "up"}">${fmtPct(r.chg)}</td>
+      <td class="num">${fmtVol(r.vol)}</td>
+      <td class="num ${r.volChg > 0 ? "up" : "dn"}">${fmtPct(r.volChg)}</td>
+      <td><span class="verdict ${r.dist ? "yes" : "no"}">${r.dist ? "O" : "X"}</span></td></tr>`;
+  }).join("");
+}
+
+document.getElementById("prev").addEventListener("click", () => { if (mi > 0) { mi--; renderCalendar(); } });
+document.getElementById("next").addEventListener("click", () => { if (mi < months.length - 1) { mi++; renderCalendar(); } });
+renderHeader(); renderCalendar(); renderDetail();
+</script>

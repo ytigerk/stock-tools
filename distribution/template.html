@@ -42,8 +42,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); li
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 header { display: grid; gap: 4px; }
-.tally { display: grid; gap: 6px; }
-.tally-head { display: grid; justify-items: end; gap: 3px; }
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.top header { min-width: 0; }
+.tally { display: grid; gap: 10px; }
+.tally-head { display: grid; justify-items: end; gap: 3px; margin-left: auto; }
 .tally-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--surface); gap: 2px; }
 .seg button {
@@ -141,18 +143,19 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 </style>
 
 <div class="wrap">
-  <header>
-    <h1>매물 출회일 체커</h1>
-    <div class="meta" id="meta"></div>
-    <div class="rule" id="rule"></div>
-  </header>
-
   <section class="tally">
-    <div class="tally-head">
-      <span class="tally-label">집계 기간</span>
-      <div class="seg" role="group" aria-label="집계 기간">
-        <button type="button" id="w5" data-w="5">5주<small>25일</small></button>
-        <button type="button" id="w6" data-w="6">6주<small>30일</small></button>
+    <div class="top">
+      <header>
+        <h1>매물 출회일 체커</h1>
+        <div class="meta" id="meta"></div>
+        <div class="rule" id="rule"></div>
+      </header>
+      <div class="tally-head">
+        <span class="tally-label">집계 기간</span>
+        <div class="seg" role="group" aria-label="집계 기간">
+          <button type="button" id="w5" data-w="5">5주<small>25일</small></button>
+          <button type="button" id="w6" data-w="6">6주<small>30일</small></button>
+        </div>
       </div>
     </div>
     <div class="summary" id="summary" aria-label="지수별 최근 매물 출회일 개수"></div>

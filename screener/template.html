@@ -48,7 +48,9 @@ details.cond[open] summary::after { content: "접기"; }
 .cond-body { padding: 0 14px 14px; display: grid; gap: 12px; }
 .cond-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; }
 .field { display: grid; gap: 4px; min-width: 0; }
+.field { align-content: end; }
 .field > span { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.field > span small { display: block; font-weight: 400; font-size: 0.72rem; }
 .field .row { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
 .field input {
   font: inherit; font-family: var(--font-num); width: 5.5em; padding: 5px 8px; border: 1px solid var(--line);
@@ -118,11 +120,11 @@ footer { font-size: 0.75rem; color: var(--muted); display: grid; gap: 3px; }
     <summary>조건</summary>
     <div class="cond-body">
       <div class="cond-grid">
-        <label class="field"><span>최근 분기 EPS 증가율 (전년 동기 대비)</span>
+        <label class="field"><span>최근 분기 EPS 증가율<small>(전년 동기 대비)</small></span>
           <span class="row"><input id="qG" type="number" step="1" inputmode="decimal">% 이상</span></label>
         <label class="field"><span>연간 EPS 3년 연평균 증가율</span>
           <span class="row"><input id="yG" type="number" step="1" inputmode="decimal">% 이상 (복리)</span></label>
-        <label class="field"><span>ROE (최근 4분기 TTM · 외국 기업은 최근 회계연도)</span>
+        <label class="field"><span>ROE<small>(최근 4분기 TTM · 외국 기업은 최근 회계연도)</small></span>
           <span class="row"><input id="roe" type="number" step="1" inputmode="decimal">% 이상</span></label>
         <div class="field"><span>주가 (달러)</span>
           <span class="row"><input id="pLo" type="number" step="1" aria-label="최저가"> ~ <input id="pHi" type="number" step="1" aria-label="최고가"></span></div>

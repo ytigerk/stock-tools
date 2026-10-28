@@ -31,16 +31,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 첫 화면 + 매물 출회일 체커
-        run: |
-          python home/build_home.py
-          python distribution/update_data.py
-      - name: 주식 스크리너 (전 종목 주가 + SEC 실적, 약 10분)
+      - name: 주식 스크리너 (전 종목 주가 + SEC 실적, 약 10분) + 거래소별 거래량 합계
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
         run: |
           python screener/build_screener.py
           python screener/render_page.py
+      - name: 첫 화면 + 매물 출회일 체커 (위에서 만든 거래량 합계 사용)
+        run: |
+          python home/build_home.py
+          python distribution/update_data.py
       - name: 매물 출회일 기록 저장 (매일 한 줄씩 쌓임)
         run: |
           git config user.name "github-actions[bot]"

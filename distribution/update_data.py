@@ -36,9 +36,9 @@ CONSTITUENTS_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-compa
 
 INDICES = [
     # key, 야후 심볼, 화면 이름, 거래량 기준 설명
-    ("nasdaq", "^IXIC", "NASDAQ", "나스닥 거래소 거래량"),
+    ("nasdaq", "^IXIC", "NASDAQ", "나스닥 상장 보통주 거래량 합산"),
     ("sp500", "^GSPC", "S&P 500", "구성종목 거래량 합산"),
-    ("nyse", "^NYA", "NYSE", "NYSE 거래량"),
+    ("nyse", "^NYA", "NYSE", "NYSE 상장 보통주 거래량 합산"),
 ]
 
 
@@ -129,6 +129,27 @@ def compute(bars):
     return rows
 
 
+EXCHANGE_VOLUME = HERE.parent / ".cache" / "exchange_volume.json"   # 스크리너가 만들어 두는 거래소별 상장 보통주 거래량 합계
+EXCHANGE_OF = {"nasdaq": "Nasdaq", "nyse": "NYSE"}
+
+
+def load_exchange_volume():
+    """거래소별 상장 보통주 거래량 합계 {지수 키: {날짜: 거래량}}.
+    마지막 날의 합산 종목 수가 전날보다 3% 넘게 적으면 아직 자료가 덜 들어온 것으로 보고 그날은 뺀다."""
+    if not EXCHANGE_VOLUME.exists():
+        return {}
+    raw = json.loads(EXCHANGE_VOLUME.read_text(encoding="utf-8"))
+    out = {}
+    for key, ex in EXCHANGE_OF.items():
+        vol, cnt = raw["volume"].get(ex, {}), raw["count"].get(ex, {})
+        days = sorted(vol)
+        if len(days) >= 2 and cnt[days[-1]] < cnt[days[-2]] * 0.97:
+            print(f"  {ex}: {days[-1]} 합산 종목 수가 적어({cnt[days[-1]]} < {cnt[days[-2]]}) 그날은 빼고 계산")
+            vol = {d: v for d, v in vol.items() if d != days[-1]}
+        out[key] = vol
+    return out
+
+
 def load_history():
     """기록 파일 읽기 → {(지수, 날짜): 줄}"""
     if not HISTORY.exists():
@@ -153,19 +174,23 @@ def main():
 
     hist = load_history()
     sp_vol, sp_missing, sp_total, sp_failed = sp500_summed_volume(rng)
+    summed = {"sp500": sp_vol, **load_exchange_volume()}
 
     for key, sym, name, vol_basis in INDICES:
         bars = fetch_chart(sym, rng)
-        if key == "sp500":
-            # 가격은 지수, 거래량은 구성종목 합산으로 교체.
-            # 구성종목은 계속 바뀌므로, 기록에 이미 저장된 오래된 날은 그날 계산해 둔 합산값을 그대로 쓴다
-            days = sorted(d for d in bars if sp_vol.get(d))
-            frozen = set(days[:-FREEZE_DAYS])
-            for d in frozen:
-                h = hist.get(("sp500", d))
+        vol = summed.get(key)
+        if vol:
+            # 가격은 지수, 거래량은 구성 종목 합산으로 교체.
+            # 구성 종목은 계속 바뀌므로(상장, 상장폐지, 지수 변경), 기록에 이미 저장된 오래된 날은 그날 계산해 둔 값을 그대로 쓴다
+            days = sorted(d for d in bars if vol.get(d))
+            for d in days[:-FREEZE_DAYS]:
+                h = hist.get((key, d))
                 if h and h.get("volume"):
-                    sp_vol[d] = int(h["volume"])
-            bars = {d: {**b, "v": sp_vol.get(d)} for d, b in bars.items() if sp_vol.get(d)}
+                    vol[d] = int(h["volume"])
+            bars = {d: {**b, "v": vol.get(d)} for d, b in bars.items() if vol.get(d)}
+        else:
+            vol_basis = "야후 지수 거래량 (합산 자료 없음)"
+            print(f"  {name}: 합산 자료가 없어 야후 지수 거래량 사용")
         rows = compute(bars)
         # 기록에 추가: 새로운 날은 추가, 최근 FREEZE_DAYS 거래일은 덮어쓰기 (자료가 나중에 고쳐질 수 있어서)
         recent = {r["date"] for r in rows[-FREEZE_DAYS:]}

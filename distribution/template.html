@@ -79,6 +79,7 @@ h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; te
   font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px;
 }
 .rule b { color: var(--ink); font-weight: 600; }
+.lag { font-size: 0.8rem; color: var(--warn); background: var(--warn-soft); border-radius: 7px; padding: 5px 10px; }
 .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 /* 요약 */
@@ -172,6 +173,7 @@ footer { font-size: 0.72rem; color: var(--muted); display: flex; flex-wrap: wrap
       <header>
         <h1>매물 출회일 체커</h1>
         <div class="meta" id="meta"></div>
+        <div class="lag" id="lag" hidden></div>
         <div class="rule" id="rule"></div>
       </header>
       <div class="tally-head">
@@ -248,6 +250,13 @@ function renderHeader() {
   const kst = gen.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" });
   document.getElementById("meta").innerHTML =
     `기준일 <b class="num">${DATA.lastDate}</b> (미국 장 마감) · 갱신 ${kst}`;
+  const late = DATA.indices.filter(ix => ix.lastDate && ix.lastDate < DATA.lastDate);
+  const lag = document.getElementById("lag");
+  if (late.length) {
+    lag.textContent = `${late.map(ix => ix.name).join(", ")}: ${DATA.lastDate} 데이터가 아직 올라오지 않았어요 ` +
+      `(마지막 ${late.map(ix => ix.lastDate).join(", ")}). 이 지수의 개수와 캘린더는 그 전날까지 기준이에요. 오전 11시쯤 다시 갱신돼요.`;
+    lag.hidden = false;
+  }
   const sc = DATA.sp500Check;
   document.getElementById("foot").innerHTML = DATA.indices
     .map(ix => `<div>${ix.name} 거래량: ${ix.volBasis}</div>`).join("") +

@@ -185,6 +185,7 @@ def main():
     for ix in out["indices"]:
         recent = ix["rows"][-WINDOW:]
         ix["windowStart"] = recent[0]["date"]
+        ix["lastDate"] = ix["rows"][-1]["date"]  # 지수마다 최신 날짜 (하나만 늦게 올라오는 경우 경고용)
         ix["count"] = sum(r["dist"] for r in recent)
         ix["rows"] = [r for r in ix["rows"] if r["date"] >= start.isoformat()]
     out["lastDate"] = last_day

@@ -3,10 +3,7 @@ name: 사이트 갱신
 
 on:
   schedule:
-    # 1차: 한국 시간 화~토 오전 7:07 (= UTC 월~금 22:07). 미국 월~금 장 마감 후.
-    - cron: "7 22 * * 1-5"
-    # 2차(보정): 한국 시간 화~토 오전 11:07 (= UTC 화~토 02:07, 뉴욕 밤 10시쯤).
-    #   야후 지수 거래량은 장 마감 후 몇 시간 동안 보정되므로, 최근 며칠 기록을 확정값으로 다시 계산한다.
+    # 한국 시간 화~토 오전 11:07 (= UTC 화~토 02:07). 뉴욕 밤 9~10시, 애프터마켓까지 끝나 거래량이 확정된 뒤.
     # GitHub 서버가 붐비면 몇 분~수십 분 늦게 실행될 수 있음.
     - cron: "7 2 * * 2-6"
   workflow_dispatch:      # Actions 탭에서 "Run workflow" 버튼으로 직접 실행
@@ -31,21 +28,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 주식 스크리너 (전 종목 주가 + SEC 실적, 약 10분) + 거래소별 거래량 합계
+      - name: 주식 스크리너 (전 종목 주가 + SEC 실적, 약 10분)
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
         run: |
           python screener/build_screener.py
           python screener/render_page.py
-      - name: 첫 화면 + 매물 출회일 체커 (위에서 만든 거래량 합계 사용)
+      - name: 지수 거래량 (Massive 전 종목 일봉으로 구성 종목 합계)
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+        run: python distribution/massive_volume.py
+      - name: 첫 화면 + 매물 출회일 체커
         run: |
           python home/build_home.py
           python distribution/update_data.py
-      - name: 매물 출회일 기록 저장 (매일 한 줄씩 쌓임)
+      - name: 기록 저장 (지수 거래량, 종목 목록, 매물 출회일 결과)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add distribution/history.csv
+          git add distribution/history.csv distribution/volume.csv distribution/tickers.json
           git diff --cached --quiet || (git commit -m "매물 출회일 기록 $(date -u +%F)" && git push)
       - uses: actions/upload-pages-artifact@v3
         with:

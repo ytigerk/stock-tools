@@ -30,7 +30,6 @@ from site_common import unfinished_day  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
 OUT = ROOT / "site" / "screener"
-EXCHANGE_VOLUME = ROOT / ".cache" / "exchange_volume.json"   # 매물 출회일 체커가 쓰는 거래소별 상장 보통주 거래량 합계
 YAHOO_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36"}
 SEC_UA = {"User-Agent": os.environ.get("SEC_USER_AGENT", "")}
 EXCHANGES = {"Nasdaq", "NYSE", "CBOE", "TXSE"}
@@ -183,8 +182,6 @@ def main():
     with ThreadPoolExecutor(8) as ex:
         priced = list(ex.map(price, universe))
     rows, failed, skipped = [], 0, 0
-    ex_sum = {"Nasdaq": {}, "NYSE": {}}   # 날짜별 거래량 합계
-    ex_cnt = {"Nasdaq": {}, "NYSE": {}}   # 날짜별 합산된 종목 수 (일부 종목 자료가 아직 없는 날을 알아내기 위해)
     for u, res in priced:
         if res is None:
             failed += 1
@@ -193,10 +190,6 @@ def main():
         if not is_common(u["ticker"], u["exchange"], long_name, kind):
             skipped += 1
             continue
-        if u["exchange"] in ex_sum:   # 주가·거래량 조건과 상관없이 상장 보통주 전부 합산 (= 지수 구성 종목)
-            for b in bars:
-                ex_sum[u["exchange"]][b[0]] = ex_sum[u["exchange"]].get(b[0], 0) + b[5]
-                ex_cnt[u["exchange"]][b[0]] = ex_cnt[u["exchange"]].get(b[0], 0) + 1
         if len(bars) < 50:
             continue
         last = bars[-1]
@@ -207,10 +200,6 @@ def main():
                      "price": round(last[4], 2), "vol50": round(vol50), "date": last[0],
                      "hi52": round(max(b[2] for b in bars[-252:]), 2), "ipo": ipo, "weeks": weekly(bars)})
     print(f"[2] 주가 수신 실패 {failed}개, 보통주 아님 {skipped}개, 바닥 조건 통과 {len(rows)}개 ({time.time() - t0:.0f}초)")
-    EXCHANGE_VOLUME.parent.mkdir(exist_ok=True)
-    EXCHANGE_VOLUME.write_text(json.dumps({"volume": ex_sum, "count": ex_cnt}), encoding="utf-8")
-    last = {k: max(v) for k, v in ex_sum.items() if v}
-    print("    거래소별 거래량 합계:", {k: f"{d} {ex_sum[k][d] / 1e9:.2f}B ({ex_cnt[k][d]}종목)" for k, d in last.items()})
 
     # 3. 분할 기록
     def sp(r):

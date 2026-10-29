@@ -15,17 +15,19 @@ CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
 ## 매물 출회일 체커 규칙
 - 매물 출회일: 전일 종가 대비 **-0.2% 이하** 하락 + 거래량 **증가**
 - 개수: 최근 **5주(25거래일) / 6주(30거래일)** 선택. 소멸 규칙 없음
-- 거래량 기준: 세 지수 모두 **구성 종목 거래량 합산** (지수 자체는 거래되지 않으므로)
-  - NASDAQ 종합지수: 나스닥 상장 보통주 전체 (약 3,500개). TradingView 나스닥 거래량과 거의 같음
-  - S&P 500: 구성종목 약 500개
-  - NYSE 종합지수: NYSE 상장 보통주 전체 (약 2,700개)
+- 거래량 기준: 세 지수 모두 **그날 구성 종목 거래량의 합계** (지수 자체는 거래되지 않으므로)
+  - NASDAQ 종합지수: 그날 거래된 나스닥 상장 보통주 전체 (약 3,400개)
+  - NYSE 종합지수: 그날 거래된 NYSE 상장 보통주 전체 (약 1,900개)
+  - S&P 500: 구성종목 약 500개 (현재 구성 기준)
+  - 신규 상장·상장폐지 종목도 그날 거래됐으면 그대로 포함
+  - 출처: Massive 전 종목 일봉 (`adjusted=false`, 병합·분할 조정 전 원래 거래량. 프리·애프터마켓 포함)
   - 종목 거래량은 체결 장소(거래소, 장외)와 상관없이 전부 센 값. "나스닥 거래소 안 체결량"과는 다름
-  - 구성 종목이 바뀌므로 오래된 날은 그날 계산해 기록에 저장한 값을 그대로 씀
-  - 가격(시가·고가·저가·종가)은 Yahoo 지수 값
+  - 기록: `distribution/volume.csv` (날짜별 합계와 합산 종목 수), 종목의 상장 거래소·종류: `distribution/tickers.json`
+- 가격(시가·고가·저가·종가)은 Yahoo 지수 값
 - 화면: 왼쪽에 지수별 개수(0~2 양호 / 3~4 주의 / 5 이상 경계), 캘린더 6개월, 날짜별 상세
 - 오른쪽: 세 지수 일봉 차트 6개월. 매물 출회일 ▼, 집계 기간 칠하기, 세 차트 기간·십자선 연동, 캘린더와 날짜 연동
-- 기록: 매일 결과를 `distribution/history.csv` 에 쌓음 (합산 거래량은 그날 값으로 고정)
-- 미국 장중에 실행하면 오늘의 미완성 봉은 빼고 계산
+- 계산 결과: `distribution/history.csv`
+- 미국 장중이나 애프터마켓 중에 실행하면 오늘은 빼고 계산
 
 ## 주식 스크리너
 ### 대상
@@ -73,13 +75,14 @@ CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
 - 일부 회사는 SEC 요약 자료에 EPS가 빠져 있음 (주식 종류별로만 보고하는 경우)
 
 ## 자동 갱신
-`.github/workflows/update-site.yml` 이 한국 시간 화~토 **오전 7시쯤**과 **오전 11시쯤** 두 번 실행되어 사이트를 새로 만든다 (각 약 15~20분).
-야후 지수 데이터는 장 마감 후 몇 시간 동안 늦게 올라오거나 거래량이 보정되므로, 11시 실행이 최근 며칠 기록을 확정값으로 바로잡는다.
+`.github/workflows/update-site.yml` 이 한국 시간 화~토 **오전 11시쯤** 하루 한 번 실행되어 사이트를 새로 만든다 (약 15~20분).
+뉴욕 밤 9~10시라 애프터마켓까지 끝나 거래량이 확정된 뒤다.
 어떤 지수의 최신 날짜만 빠지면 매물 출회일 화면 위에 경고가 뜬다.
 Actions 탭 → "사이트 갱신" → **Run workflow** 로 직접 실행할 수도 있다.
 
 필요한 저장소 비밀값 (Settings → Secrets and variables → Actions)
 - `SEC_USER_AGENT`: SEC 접속용 이름표 (`이름 이메일`). SEC 정책상 필요
+- `MASSIVE_API_KEY`: Massive(구 Polygon) API 키 (무료 플랜. 분당 5회 제한)
 
 ## 폴더 구조
 ```
@@ -87,7 +90,10 @@ site_common.py                  공통: 페이지 감싸기, 왼쪽 메뉴
 home/                           첫 화면
 distribution/update_data.py     매물 출회일: 데이터 수집 + 계산 + 페이지
 distribution/template.html      매물 출회일 화면
-distribution/history.csv        매물 출회일 기록 (자동 작업이 매일 추가)
+distribution/massive_volume.py  지수 거래량: Massive 전 종목 일봉 → 구성 종목 합계 (volume.csv)
+distribution/volume.csv         날짜별 지수 거래량 기록 (자동 작업이 매일 추가)
+distribution/tickers.json       종목별 상장 거래소·종류 (상장폐지 종목 포함, 계속 늘어남)
+distribution/history.csv        매물 출회일 계산 결과
 screener/build_screener.py      스크리너: 전 종목 주가 + SEC 실적 수집 → data.json, 주봉 파일
 screener/fundamentals.py        SEC 실적 정리 (분기·연간 EPS, 매출, 영업이익, ROE, 분할 보정)
 screener/render_page.py         스크리너 페이지 만들기

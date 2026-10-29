@@ -255,14 +255,12 @@ function renderHeader() {
   const lag = document.getElementById("lag");
   if (late.length) {
     lag.textContent = `${late.map(ix => ix.name).join(", ")}: ${DATA.lastDate} 데이터가 아직 올라오지 않았어요 ` +
-      `(마지막 ${late.map(ix => ix.lastDate).join(", ")}). 이 지수의 개수와 캘린더는 그 전날까지 기준이에요. 오전 11시쯤 다시 갱신돼요.`;
+      `(마지막 ${late.map(ix => ix.lastDate).join(", ")}). 이 지수의 개수와 캘린더는 그 전날까지 기준이에요. 다음 갱신 때 다시 확인해요.`;
     lag.hidden = false;
   }
-  const sc = DATA.sp500Check;
   document.getElementById("foot").innerHTML = DATA.indices
     .map(ix => `<div>${ix.name} 거래량: ${ix.volBasis}</div>`).join("") +
-    `<div>S&amp;P 500 구성종목 ${sc.constituents}개 중 수집 실패 ${sc.failed.length}개</div>` +
-    `<div>데이터: Yahoo Finance</div>`;
+    `<div>가격: Yahoo Finance 지수 · 거래량: Massive 종목별 일봉 (프리·애프터마켓 포함)</div>`;
 }
 
 function renderSummary() {

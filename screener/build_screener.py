@@ -187,10 +187,10 @@ def main():
             failed += 1
             continue
         bars, long_name, ipo, kind = res
-        if len(bars) < 50:
-            continue
         if not is_common(u["ticker"], u["exchange"], long_name, kind):
             skipped += 1
+            continue
+        if len(bars) < 50:
             continue
         last = bars[-1]
         vol50 = sum(b[5] for b in bars[-50:]) / 50

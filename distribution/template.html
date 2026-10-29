@@ -38,10 +38,10 @@
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
 /* PC 작업 화면: 메뉴 | 왼쪽(요약, 캘린더, 상세) | 오른쪽 지수 일봉 차트 3개 */
-.shell { height: 100%; display: grid; grid-template-columns: 160px minmax(0, 1fr) 50%; padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+.shell { height: 100%; display: grid; grid-template-columns: 160px clamp(440px, 30vw, 640px) minmax(0, 1fr); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
 .shell > * { min-height: 0; }
 .main { min-width: 0; overflow-y: auto; border-right: 1px solid var(--line); }
-.wrap { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.wrap { display: grid; gap: 8px; padding: 10px 14px 8px; }
 .charts { display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); min-width: 0; background: var(--surface); }
 .ch { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line); }
 .ch:last-child { border-bottom: 0; }
@@ -74,9 +74,9 @@ header { display: grid; gap: 4px; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
-.meta { color: var(--muted); font-size: 0.8rem; }
+.meta { color: var(--muted); font-size: 0.76rem; }
 .rule {
-  font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px;
+  font-size: 0.76rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px;
 }
 .rule b { color: var(--ink); font-weight: 600; }
 .lag { font-size: 0.8rem; color: var(--warn); background: var(--warn-soft); border-radius: 7px; padding: 5px 10px; }
@@ -86,11 +86,12 @@ h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; te
 .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .idx {
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-  padding: 6px 12px; display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 0 8px; min-width: 0;
+  padding: 5px 10px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 6px; min-width: 0;
 }
-.idx .pill { justify-self: end; }
-.idx-name { font-size: 0.8rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
-.idx-count { font-family: var(--font-num); font-size: 1.35rem; font-weight: 600; line-height: 1.15; }
+.idx .idx-name { grid-column: 1 / -1; white-space: nowrap; }
+.idx .pill { justify-self: end; white-space: nowrap; }
+.idx-name { font-size: 0.74rem; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.idx-count { white-space: nowrap; font-family: var(--font-num); font-size: 1.25rem; font-weight: 600; line-height: 1.15; }
 .idx-count small { font-size: 0.85rem; color: var(--muted); font-weight: 400; margin-left: 2px; }
 .pill {
   justify-self: start; font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 99px;
@@ -103,8 +104,8 @@ h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; te
 /* 캘린더 */
 .cal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.cal-title { font-weight: 700; font-size: 0.98rem; }
-.cal-head .legend { margin-right: auto; margin-left: 14px; }
+.cal-title { font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
+.cal-head .legend { margin-right: auto; margin-left: 10px; gap: 0 10px; font-size: 0.72rem; }
 .nav { display: flex; gap: 6px; }
 .nav button {
   font: inherit; font-size: 0.8rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
@@ -128,12 +129,12 @@ h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; te
 .day.empty { visibility: hidden; }
 .day.closed, .day.future { cursor: default; color: var(--muted); background: transparent; border-style: dashed; }
 .day.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.dnum { font-family: var(--font-num); font-size: 0.78rem; font-weight: 500; line-height: 1.2; }
+.dnum { font-family: var(--font-num); font-size: 0.74rem; font-weight: 500; line-height: 1.1; }
 .tag { font-size: 0.68rem; color: var(--muted); }
-.marks { display: flex; flex-wrap: wrap; gap: 2px; }
+.marks { display: grid; gap: 1px; justify-items: start; }
 .mk {
-  font-size: 0.66rem; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 1px 4px; border-radius: 4px; color: var(--muted); opacity: 0.6;
+  font-size: 0.62rem; font-weight: 500; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 0 4px; border-radius: 3px; color: var(--muted); opacity: 0.6; max-width: 100%;
 }
 .mk.on { background: var(--dist); color: #fff; font-weight: 700; opacity: 1; }
 
@@ -141,9 +142,9 @@ h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; te
 .detail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 2px; }
 .detail h2 { margin: 0; font-size: 0.9rem; }
 .tbl-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 tbody tr:last-child td { border-bottom: 0; }
-th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th, td { padding: 3px 5px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
 th:last-child, td:last-child { text-align: center; }
 th { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
@@ -153,7 +154,7 @@ td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .verdict { font-family: var(--font-num); font-weight: 700; font-size: 0.95rem; }
 .verdict.yes { color: var(--dist); }
 .verdict.no { color: var(--muted); font-weight: 400; }
-footer { font-size: 0.72rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 12px; }
+footer { font-size: 0.68rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 10px; line-height: 1.4; }
 @media (max-width: 520px) {
   .summary { gap: 8px; }
   .idx { padding: 8px 10px; }
@@ -254,14 +255,12 @@ function renderHeader() {
   const lag = document.getElementById("lag");
   if (late.length) {
     lag.textContent = `${late.map(ix => ix.name).join(", ")}: ${DATA.lastDate} 데이터가 아직 올라오지 않았어요 ` +
-      `(마지막 ${late.map(ix => ix.lastDate).join(", ")}). 이 지수의 개수와 캘린더는 그 전날까지 기준이에요. 오전 11시쯤 다시 갱신돼요.`;
+      `(마지막 ${late.map(ix => ix.lastDate).join(", ")}). 이 지수의 개수와 캘린더는 그 전날까지 기준이에요. 다음 갱신 때 다시 확인해요.`;
     lag.hidden = false;
   }
-  const sc = DATA.sp500Check;
   document.getElementById("foot").innerHTML = DATA.indices
     .map(ix => `<div>${ix.name} 거래량: ${ix.volBasis}</div>`).join("") +
-    `<div>S&amp;P 500 구성종목 ${sc.constituents}개 중 수집 실패 ${sc.failed.length}개</div>` +
-    `<div>데이터: Yahoo Finance</div>`;
+    `<div>가격: Yahoo Finance 지수 · 거래량: Massive 종목별 일봉 (프리·애프터마켓 포함)</div>`;
 }
 
 function renderSummary() {
@@ -279,7 +278,7 @@ function renderSummary() {
       <span class="pill ${cls}">${label}</span></div>`;
   }).join("");
   document.getElementById("summaryNote").textContent =
-    `${winStart} ~ ${DATA.lastDate} 기준 (${weeks}주). 색 표시는 참고용(0~2 양호, 3~4 주의, 5 이상 경계).`;
+    `${winStart} ~ ${DATA.lastDate} (${weeks}주) · 0~2 양호, 3~4 주의, 5 이상 경계`;
   for (const b of document.querySelectorAll(".seg button"))
     b.setAttribute("aria-pressed", String(Number(b.dataset.w) === weeks));
 }

@@ -54,6 +54,8 @@ def get(url):
             if e.code in (500, 502, 503, 504):
                 time.sleep(15 * (attempt + 1))
                 continue
+            body = e.read().decode("utf-8", "replace")[:300]
+            print(f"  Massive 응답 {e.code}: {body}", flush=True)
             raise
         except Exception:
             time.sleep(15 * (attempt + 1))
@@ -83,7 +85,13 @@ def sp500_members():
 
 
 def day_volume(day, tickers, sp500):
-    d = get(f"{API}/v2/aggs/grouped/locale/us/market/stocks/{day}?adjusted=false")
+    try:
+        d = get(f"{API}/v2/aggs/grouped/locale/us/market/stocks/{day}?adjusted=false")
+    except urllib.error.HTTPError as e:
+        # 무료 플랜은 그날 자료를 뉴욕 시간 자정이 지나야 주는 것으로 보임 → 아직 못 받는 날은 건너뛰고 다음 실행에서 받는다
+        if e.code in (401, 403):
+            return {"date": day, "all_n": 0}
+        raise
     res = d.get("results") or []
     out = {"date": day, "nasdaq": 0, "nyse": 0, "sp500": 0, "nasdaq_n": 0, "nyse_n": 0, "sp500_n": 0, "all_n": len(res)}
     for x in res:

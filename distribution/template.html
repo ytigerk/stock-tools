@@ -47,7 +47,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); li
 .ch:last-child { border-bottom: 0; }
 .ch-head { display: flex; align-items: baseline; gap: 10px; padding: 8px 16px; flex-wrap: wrap; }
 .ch-head h3 { margin: 0; font-size: 0.9rem; white-space: nowrap; }
-.ch-head .cnt { font-size: 0.75rem; color: var(--muted); }
 .ch-legend { margin-left: auto; font-family: var(--font-num); font-size: 0.74rem; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .ch-legend .d { color: var(--dist); font-weight: 700; }
 .ch-body { flex: 1; min-height: 0; position: relative; }
@@ -222,7 +221,6 @@ footer { font-size: 0.68rem; color: var(--muted); display: flex; flex-wrap: wrap
 
 <script>
 const DATA = /*__DATA__*/null;
-const CHART_NOTE = "▼ 매물 출회일 · 옅은 파란 구간 = 최근 집계 기간";
 const SHORT = { nasdaq: "NASDAQ", sp500: "S&amp;P 500", nyse: "NYSE" };
 const DOW = ["월", "화", "수", "목", "금"];
 
@@ -366,7 +364,7 @@ function buildCharts() {
   const box = document.getElementById("charts");
   if (!window.LightweightCharts) { box.innerHTML = `<div class="ch-msg">차트 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>`; return; }
   box.innerHTML = DATA.indices.map(ix => `<div class="ch"><div class="ch-head"><h3>${ix.name}</h3>
-    <span class="cnt" id="cnt-${ix.key}"></span><span class="ch-legend" id="lg-${ix.key}"></span></div>
+    <span class="ch-legend" id="lg-${ix.key}"></span></div>
     <div class="ch-body"><div id="c-${ix.key}"></div></div></div>`).join("");
   for (const ix of DATA.indices) {
     const el = document.getElementById("c-" + ix.key);
@@ -414,8 +412,6 @@ function paintWindow() {
   for (const k in CH) {
     const c = CH[k];
     c.win.setData(c.rows.filter(r => r.date >= winStart).map(r => ({ time: r.date, value: 1 })));
-    const n = c.rows.filter(r => r.date >= winStart && r.dist).length;
-    document.getElementById("cnt-" + k).textContent = `최근 ${weeks * 5}거래일 매물 출회일 ${n}개` + (k === DATA.indices[0].key ? ` · ${CHART_NOTE}` : "");
   }
 }
 

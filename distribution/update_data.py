@@ -5,7 +5,7 @@
  1. 야후에서 NASDAQ 종합지수, S&P 500, NYSE 종합지수 일봉(가격)을 받는다.
  2. 거래량은 volume.csv (massive_volume.py 가 Massive 전 종목 일봉으로 만든 구성 종목 거래량 합계)를 쓴다.
  3. 매물 출회일 판단: 전일 종가 대비 변동률 <= -0.2%  그리고  거래량 > 전일 거래량
- 4. 결과를 template.html 에 넣어서 site/distribution/index.html 을 만든다.
+ 4. 결과를 template.html 에 넣어서 사이트 첫 화면 site/index.html 을 만든다.
 
 실행: python update_data.py
 """
@@ -153,7 +153,10 @@ def main():
     body = (HERE / "template.html").read_text(encoding="utf-8")
     body = body.replace("/*__DATA__*/null", json.dumps(out, ensure_ascii=False))
     body = body.replace("<!--__NAV__-->", nav("distribution"))
-    (SITE / "index.html").write_text(wrap_page(body), encoding="utf-8")
+    (SITE.parent / "index.html").write_text(wrap_page(body), encoding="utf-8")   # 사이트 첫 화면
+    # 예전 주소(…/distribution/)로 들어오면 첫 화면으로 보내기
+    (SITE / "index.html").write_text('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../">'
+                                     '<link rel="canonical" href="../"><a href="../">매물 출회일 체커로 이동</a>\n', encoding="utf-8")
     if len(sys.argv) > 1:  # 미리보기용: python update_data.py 미리보기파일.html
         Path(sys.argv[1]).write_text(body, encoding="utf-8")
     print(f"완료: 마지막 거래일 {last_day}")

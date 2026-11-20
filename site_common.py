@@ -17,8 +17,7 @@ def unfinished_day():
 
 
 MENU = [
-    ("distribution", "매물 출회일 체커"),
-    ("screener", "주식 스크리너"),
+    ("distribution", "매물 출회일 체커", "./"),   # 사이트 첫 화면이 곧 매물 출회일 체커
 ]
 
 NAV_CSS = """
@@ -42,11 +41,11 @@ NAV_CSS = """
 
 
 def nav(active):
-    """왼쪽 메뉴 HTML. 각 도구 폴더(distribution/, screener/) 안의 페이지에서 쓴다."""
+    """왼쪽 메뉴 HTML. 도구가 늘어나면 MENU 에 추가한다."""
     items = "".join(
-        f'<a class="item" href="../{key}/index.html"{" aria-current=\"page\"" if key == active else ""}>{label}</a>'
-        for key, label in MENU)
-    return f'{NAV_CSS}<nav class="sidenav" aria-label="도구 메뉴"><a class="brand" href="../index.html">Stock Tools</a>{items}</nav>'
+        f'<a class="item" href="{href}"{" aria-current=\"page\"" if key == active else ""}>{label}</a>'
+        for key, label, href in MENU)
+    return f'{NAV_CSS}<nav class="sidenav" aria-label="도구 메뉴"><a class="brand" href="./">Stock Tools</a>{items}</nav>'
 
 
 def wrap_page(body):

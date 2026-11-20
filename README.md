@@ -1,16 +1,11 @@
 # stock-tools
 
-CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
+CAN SLIM(오닐) 방식 매매 공부용 개인 도구. PC 화면 기준.
 
 사이트: https://ytigerk.github.io/stock-tools
 
 ## 도구
-| 도구 | 경로 | 내용 |
-|---|---|---|
-| 매물 출회일 체커 | `distribution/` | NASDAQ · S&P 500 · NYSE 매물 출회일 캘린더 |
-| 주식 스크리너 | `screener/` | 조건 거르기 + 주봉 차트 + 분기 실적 |
-
-두 도구는 왼쪽 메뉴로 오간다.
+사이트 주소로 들어가면 바로 **매물 출회일 체커**가 뜬다. (예전 주소 `…/distribution/` 은 첫 화면으로 넘어감)
 
 ## 매물 출회일 체커 규칙
 - 매물 출회일: 전일 종가 대비 **-0.2% 이하** 하락 + 거래량 **증가**
@@ -29,75 +24,28 @@ CAN SLIM(오닐) 방식 매매 공부용 개인 도구 모음. PC 화면 기준.
 - 계산 결과: `distribution/history.csv`
 - 미국 장중이나 애프터마켓 중에 실행하면 오늘은 빼고 계산
 
-## 주식 스크리너
-### 대상
-나스닥 · NYSE 등에 상장된 보통주. OTC, 우선주, 워런트, 유닛, ETF·펀드형 종목은 제외.
-
-### 조건 (화면에서 숫자 변경 가능, 기본값)
-- 최근 분기 EPS 증가율 (전년 동기 대비) **30% 이상**
-- 연간 EPS 3년 복리 연평균 **25% 이상**
-- ROE **17% 이상** (최근 4분기, 외국 기업은 최근 회계연도)
-- 주가 **15 ~ 300달러** (10달러 미만은 항상 제외)
-- 50일 평균 거래량 **10만 주 이상**
-
-### 결과 탭
-- 통과: 세 조건을 모두 숫자로 확인
-- 흑자 전환: 적자인 EPS가 존재해 계산 불가 (탈락 아님)
-- 자료 없음: 상장 3년 미만 / 외국 기업 / 자료 누락 (탈락 아님)
-
-### 종목을 고르면
-- 주봉 차트 2년 + 10주 이동평균선 + 거래량 (TradingView Lightweight Charts)
-- % 측정 도구: 버튼 또는 M 키 → 두 점 클릭 → 상승·하락률과 걸린 주 수. Esc로 끄기
-- 재무 확인: 최근 8분기 EPS, 전년 동기 EPS, EPS 증가율, 매출액, 매출 증가율 (모두 전년 동기 대비)
-
-### 관심종목
-- 차트 위 ☆ 관심 버튼 또는 W 키로 추가/삭제, ★ 관심 탭에서 티커 입력으로 추가, ✕로 삭제
-- 최근 추가한 종목이 위. 조건과 상관없이 담아둔 종목을 모두 보여줌
-- 이 브라우저에 저장됨 (쿠키 및 사이트 데이터를 지우거나 다른 브라우저·PC에서는 보이지 않음)
-
-### 단축키
-| 키 | 기능 |
-|---|---|
-| ↑ ↓ | 목록에서 종목 이동 |
-| W | 관심종목 추가/삭제 |
-| M | % 측정 켜기/끄기 |
-| Esc | % 측정 끄기 |
-
-### 실적 데이터 정리 방식
-- 출처: SEC EDGAR (회사가 제출한 공식 실적, 무료)
-- EPS는 회계 기준(GAAP). 일회성 손익을 뺀 조정 EPS가 아님
-- 4분기는 "연간 − 9개월 누적"으로 계산
-- 주식 분할은 Yahoo 분할 기록으로 보정
-- 외국 기업(20-F, 40-F 제출)은 연간 실적만 있음
-
-### 알려진 한계
-- SEC 반영은 회사가 정식 보고서를 낸 뒤라 실적 발표보다 며칠~몇 주 늦음
-- 일부 회사는 SEC 요약 자료에 EPS가 빠져 있음 (주식 종류별로만 보고하는 경우)
+## 정리한 도구
+- 주식 스크리너 (2026-11 삭제): 거르기는 finviz, 차트 검토는 TradingView 를 쓰기로 함. 코드는 GitHub 기록에 남아 있음
 
 ## 자동 갱신
-`.github/workflows/update-site.yml` 이 한국 시간 화~토 **오후 3시쯤** 하루 한 번 실행되어 사이트를 새로 만든다 (약 15~20분).
+`.github/workflows/update-site.yml` 이 한국 시간 화~토 **오후 3시쯤** 하루 한 번 실행되어 사이트를 새로 만든다 (약 3~5분).
 Massive 무료 플랜은 미국 동부 시간 자정이 지나야 그 거래일 일봉을 주기 때문이다 (자정 전 요청은 403).
 어떤 지수의 최신 날짜만 빠지면 매물 출회일 화면 위에 경고가 뜬다.
 Actions 탭 → "사이트 갱신" → **Run workflow** 로 직접 실행할 수도 있다.
 
 필요한 저장소 비밀값 (Settings → Secrets and variables → Actions)
-- `SEC_USER_AGENT`: SEC 접속용 이름표 (`이름 이메일`). SEC 정책상 필요
 - `MASSIVE_API_KEY`: Massive(구 Polygon) API 키 (무료 플랜. 분당 5회 제한)
 
 ## 폴더 구조
 ```
 site_common.py                  공통: 페이지 감싸기, 왼쪽 메뉴
-home/                           첫 화면
-distribution/update_data.py     매물 출회일: 데이터 수집 + 계산 + 페이지
+distribution/update_data.py     매물 출회일: 지수 가격(Yahoo) + 거래량 기록 → 계산 → 사이트 첫 화면
 distribution/template.html      매물 출회일 화면
 distribution/massive_volume.py  지수 거래량: Massive 전 종목 일봉 → 구성 종목 합계 (volume.csv)
 distribution/volume.csv         날짜별 지수 거래량 기록 (자동 작업이 매일 추가)
 distribution/tickers.json       종목별 상장 거래소·종류 (상장폐지 종목 포함, 계속 늘어남)
+distribution/sp500_constituents.csv  S&P 500 구성종목 목록
 distribution/history.csv        매물 출회일 계산 결과
-screener/build_screener.py      스크리너: 전 종목 주가 + SEC 실적 수집 → data.json, 주봉 파일
-screener/fundamentals.py        SEC 실적 정리 (분기·연간 EPS, 매출, 영업이익, ROE, 분할 보정)
-screener/render_page.py         스크리너 페이지 만들기
-screener/template.html          스크리너 화면
 .github/workflows/              자동 실행 설정
 ```
 `site/` 폴더는 자동으로 만들어지는 결과물이라 저장소에 올리지 않는다.
